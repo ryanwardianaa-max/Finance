@@ -1,29 +1,30 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="id" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Librayn Finance - Dashboard Keuangan Pintar</title>
-    
-    <!-- Google Fonts: Plus Jakarta Sans -->
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    
-    <!-- FontAwesome Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
+    <title>Saku Librayn - Pembukuan Suara Cerdas</title>
+    <meta name="description" content="Aplikasi pembukuan pintar untuk UMKM. Catat transaksi cukup dengan suara, diperkuat AI dan sinkronisasi real-time.">
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+    <!-- FontAwesome 6 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Chart.js CDN -->
+
+    <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    
-    <!-- HTML5-QRCode Scanner CDN -->
+
+    <!-- HTML5-QRCode Scanner -->
     <script src="https://cdn.jsdelivr.net/npm/html5-qrcode/html5-qrcode.min.js"></script>
-    
-    <!-- QRCode.js CDN (Generating QR Codes) -->
+
+    <!-- QRCode.js Generator -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
-    <!-- Supabase JS Client Library -->
+    <!-- Supabase JS Client -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <script>
@@ -31,22 +32,22 @@
             darkMode: 'class',
             theme: {
                 extend: {
-                    fontFamily: {
-                        sans: ['"Plus Jakarta Sans"', 'sans-serif'],
-                    },
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
                     colors: {
-                        darkBg: '#090d16',
-                        glassBg: 'rgba(15, 23, 42, 0.45)',
-                        glassBorder: 'rgba(255, 255, 255, 0.08)',
-                        brandPurple: '#8b5cf6',
-                        brandTeal: '#0d9488',
-                        brandCoral: '#f43f5e',
+                        base: '#020617',
+                        surface: '#0f172a',
+                        card: '#1e293b',
+                        violet: { 500: '#8b5cf6', 600: '#7c3aed', 400: '#a78bfa' },
+                        emerald: { 500: '#10b981', 400: '#34d399', 600: '#059669' },
+                        rose: { 500: '#f43f5e', 400: '#fb7185', 600: '#e11d48' },
+                        amber: { 500: '#f59e0b', 400: '#fbbf24' },
                     },
                     boxShadow: {
-                        'neon-purple': '0 0 15px rgba(139, 92, 246, 0.35)',
-                        'neon-teal': '0 0 15px rgba(13, 148, 136, 0.35)',
-                        'neon-coral': '0 0 15px rgba(244, 63, 94, 0.35)',
-                        'glass': '0 8px 32px 0 rgba(0, 0, 0, 0.37)',
+                        'violet': '0 0 20px rgba(139,92,246,0.3)',
+                        'emerald': '0 0 20px rgba(16,185,129,0.3)',
+                        'rose': '0 0 20px rgba(244,63,94,0.3)',
+                        'card': '0 4px 24px rgba(0,0,0,0.4)',
+                        'inner-violet': 'inset 0 1px 0 rgba(139,92,246,0.2)',
                     }
                 }
             }
@@ -54,743 +55,956 @@
     </script>
 
     <style>
+        *, *::before, *::after { box-sizing: border-box; }
+
         body {
-            background-color: #f8fafc;
-            color: #1e293b;
+            background-color: #020617;
+            color: #f1f5f9;
+            font-family: 'Inter', sans-serif;
             overflow-x: hidden;
             -webkit-tap-highlight-color: transparent;
-            transition: background-color 0.3s ease, color 0.3s ease;
         }
-        .dark body {
-            background-color: #090d16;
-            color: #f1f5f9;
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: rgba(139,92,246,0.4); border-radius: 4px; }
+
+        /* Glassmorphism */
+        .glass {
+            background: rgba(15, 23, 42, 0.7);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255,255,255,0.06);
         }
-        
-        /* Override Tailwind utility classes to adapt to light/dark themes */
-        .bg-glassBg {
-            background-color: rgba(255, 255, 255, 0.8) !important;
-            transition: background-color 0.3s ease;
+        .glass-card {
+            background: rgba(30, 41, 59, 0.5);
+            border: 1px solid rgba(255,255,255,0.06);
         }
-        .dark .bg-glassBg {
-            background-color: rgba(15, 23, 42, 0.45) !important;
+
+        /* Gradient text */
+        .text-gradient-violet {
+            background: linear-gradient(135deg, #a78bfa, #8b5cf6, #6d28d9);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
-        .border-glassBorder {
-            border-color: rgba(15, 23, 42, 0.08) !important;
-            transition: border-color 0.3s ease;
+        .text-gradient-emerald {
+            background: linear-gradient(135deg, #34d399, #10b981);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
-        .dark .border-glassBorder {
-            border-color: rgba(255, 255, 255, 0.08) !important;
-        }
-        
-        /* Text Color Adaptations */
-        .text-slate-100 {
-            color: #1e293b !important;
-            transition: color 0.3s ease;
-        }
-        .dark .text-slate-100 {
-            color: #f1f5f9 !important;
-        }
-        .text-white {
-            color: #0f172a !important;
-            transition: color 0.3s ease;
-        }
-        .dark .text-white {
-            color: #ffffff !important;
-        }
-        .text-slate-400 {
-            color: #64748b !important;
-            transition: color 0.3s ease;
-        }
-        .dark .text-slate-400 {
-            color: #94a3b8 !important;
-        }
-        
-        /* Custom scrollbar */
-        ::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
-        }
-        ::-webkit-scrollbar-track {
-            background: rgba(15, 23, 42, 0.1);
-        }
-        ::-webkit-scrollbar-thumb {
-            background: rgba(139, 92, 246, 0.3);
-            border-radius: 4px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: rgba(139, 92, 246, 0.6);
-        }
-        .backdrop-blur-md {
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-        }
-        /* Pulsing voice effect */
-        @keyframes ripple {
-            0% { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.4), 0 0 0 10px rgba(139, 92, 246, 0.2); }
-            100% { box-shadow: 0 0 0 15px rgba(139, 92, 246, 0), 0 0 0 30px rgba(139, 92, 246, 0); }
+
+        /* Voice recording animation */
+        @keyframes voice-pulse {
+            0% { box-shadow: 0 0 0 0 rgba(139,92,246,0.6), 0 0 0 0 rgba(139,92,246,0.3); }
+            70% { box-shadow: 0 0 0 12px rgba(139,92,246,0), 0 0 0 24px rgba(139,92,246,0); }
+            100% { box-shadow: 0 0 0 0 rgba(139,92,246,0), 0 0 0 0 rgba(139,92,246,0); }
         }
         .recording-active {
-            animation: ripple 1.2s infinite;
-            background-color: #f43f5e !important;
+            animation: voice-pulse 1.2s infinite !important;
+            background: linear-gradient(135deg, #7c3aed, #8b5cf6) !important;
         }
-        
-        /* Disable text selection on interactive elements */
-        button, select, input, label {
-            user-select: none;
-            -webkit-user-select: none;
+
+        /* Shimmer loading */
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
         }
+        .shimmer {
+            background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+        }
+
+        /* Smooth transitions */
+        .page-transition { transition: opacity 0.2s ease, transform 0.2s ease; }
+        .btn-press { transition: transform 0.1s ease, box-shadow 0.1s ease; }
+        .btn-press:active { transform: scale(0.97); }
+
+        /* Status indicator */
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+        .status-blink { animation: blink 2s infinite; }
+
+        /* Orb background effects */
+        .orb {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(100px);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* Input styling */
+        input, select, textarea {
+            background: rgba(15, 23, 42, 0.8) !important;
+            border-color: rgba(71, 85, 105, 0.5) !important;
+            color: #f1f5f9 !important;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none !important;
+            border-color: rgba(139, 92, 246, 0.7) !important;
+            box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1) !important;
+        }
+        input::placeholder, textarea::placeholder { color: #475569 !important; }
+
+        /* Bottom sheet modal */
+        .bottom-sheet {
+            transform: translateY(100%);
+            transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+        }
+        .bottom-sheet.open { transform: translateY(0); }
+
+        /* AI Analysis card */
+        .ai-card-bg {
+            background: linear-gradient(135deg, rgba(109,40,217,0.15), rgba(16,185,129,0.08));
+            border: 1px solid rgba(139,92,246,0.2);
+        }
+
+        /* Mobile friendly touch targets */
+        button { min-height: 44px; cursor: pointer; }
+        select { min-height: 44px; }
+
+        /* Number animation */
+        @keyframes count-up { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .count-animate { animation: count-up 0.4s ease forwards; }
+
+        /* Category badge colors */
+        .cat-makanan { color: #fb923c; background: rgba(251,146,60,0.1); }
+        .cat-transportasi { color: #38bdf8; background: rgba(56,189,248,0.1); }
+        .cat-belanja { color: #a78bfa; background: rgba(167,139,250,0.1); }
+        .cat-tagihan { color: #fbbf24; background: rgba(251,191,36,0.1); }
+        .cat-hiburan { color: #f472b6; background: rgba(244,114,182,0.1); }
+        .cat-gaji { color: #34d399; background: rgba(52,211,153,0.1); }
+        .cat-investasi { color: #818cf8; background: rgba(129,140,248,0.1); }
+        .cat-lainnya { color: #94a3b8; background: rgba(148,163,184,0.1); }
+
+        /* Toast */
+        @keyframes slide-in-right { from { transform: translateX(120%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes slide-out-right { from { transform: translateX(0); opacity: 1; } to { transform: translateX(120%); opacity: 0; } }
+        .toast-enter { animation: slide-in-right 0.3s ease forwards; }
+        .toast-exit { animation: slide-out-right 0.3s ease forwards; }
     </style>
 </head>
-<body class="font-sans min-h-screen relative antialiased pb-12">
+
+<body class="relative min-h-screen antialiased">
 
     <!-- Background Orbs -->
-    <div class="fixed top-[-10%] left-[-10%] w-[50%] h-[50%] bg-purple-900/20 rounded-full blur-[120px] pointer-events-none z-0"></div>
-    <div class="fixed bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-teal-900/20 rounded-full blur-[120px] pointer-events-none z-0"></div>
-    
-    <!-- TOAST NOTIFICATION CONTAINER -->
-    <div id="toast-container" class="fixed top-5 right-5 z-50 flex flex-col gap-3 max-w-sm pointer-events-none"></div>
+    <div class="orb w-96 h-96 bg-violet-500/10 top-[-10%] left-[-10%]"></div>
+    <div class="orb w-80 h-80 bg-emerald-500/8 bottom-[10%] right-[-5%]"></div>
+    <div class="orb w-64 h-64 bg-violet-600/6 top-[50%] left-[40%]"></div>
 
-    <!-- MAIN APP WRAPPER -->
-    <div class="relative z-10 min-h-screen flex flex-col">
+    <!-- Toast Container -->
+    <div id="toast-container" class="fixed top-4 right-4 z-[100] flex flex-col gap-2 max-w-xs pointer-events-none"></div>
 
-        <!-- 1. LOGIN SCREEN -->
-        <div id="login-screen" class="flex-1 flex items-center justify-center p-4">
-            <div class="w-full max-w-md bg-glassBg border border-glassBorder backdrop-blur-md rounded-3xl p-8 shadow-glass flex flex-col items-center relative overflow-hidden">
-                <div class="absolute -top-10 -right-10 w-24 h-24 bg-brandPurple/20 rounded-full blur-xl"></div>
-                <div class="absolute -bottom-10 -left-10 w-24 h-24 bg-brandTeal/20 rounded-full blur-xl"></div>
+    <!-- ============================= LOGIN SCREEN ============================= -->
+    <div id="login-screen" class="relative z-10 min-h-screen flex flex-col items-center justify-center p-4">
+        <div class="w-full max-w-sm">
 
-                <!-- App Logo & Title -->
-                <div class="mb-8 text-center flex flex-col items-center">
-                    <div class="w-16 h-16 bg-gradient-to-tr from-brandPurple to-indigo-500 rounded-2xl flex items-center justify-center shadow-neon-purple mb-4 transform hover:rotate-12 transition-transform duration-300">
-                        <i class="fa-solid fa-wallet text-2xl text-white"></i>
-                    </div>
-                    <h1 class="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-white via-indigo-200 to-brandPurple bg-clip-text text-transparent">Librayn Finance</h1>
-                    <p class="text-slate-400 text-sm mt-2">Kelola keuangan cerdas dengan integrasi AI & Supabase Database</p>
+            <!-- Logo & Branding -->
+            <div class="text-center mb-8">
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-600 to-violet-500 shadow-violet mb-4">
+                    <i class="fa-solid fa-sack-dollar text-white text-2xl"></i>
                 </div>
+                <h1 class="text-3xl font-black tracking-tight">
+                    <span class="text-white">Saku</span>
+                    <span class="text-gradient-violet">Librayn</span>
+                </h1>
+                <p class="text-slate-400 text-sm mt-1">Pembukuan Suara Cerdas untuk UMKM</p>
+            </div>
 
-                <!-- Auth Tabs (Form vs QR Scan Login) -->
-                <div class="grid grid-cols-2 gap-2 bg-slate-900/60 p-1 rounded-xl border border-glassBorder w-full mb-6 shrink-0">
-                    <button id="tab-login-form" class="py-2 text-xs font-semibold rounded-lg bg-brandPurple text-white shadow-neon-purple active:scale-95 transition-transform min-h-[36px]" onclick="setLoginMode('form')">
-                        <i class="fa-solid fa-envelope mr-1.5"></i> Form Login
+            <!-- Auth Card -->
+            <div class="glass rounded-3xl p-6 shadow-card">
+
+                <!-- Mode Tabs -->
+                <div class="flex bg-slate-900/60 p-1 rounded-xl mb-6 border border-slate-800">
+                    <button id="tab-login-form"
+                        class="flex-1 py-2 text-xs font-semibold rounded-lg bg-violet-600 text-white shadow-violet btn-press"
+                        onclick="setLoginMode('form')">
+                        <i class="fa-solid fa-envelope mr-1.5"></i>Email & Password
                     </button>
-                    <button id="tab-login-qr" class="py-2 text-xs font-semibold rounded-lg text-slate-400 hover:text-slate-200 active:scale-95 transition-transform min-h-[36px]" onclick="setLoginMode('qr')">
-                        <i class="fa-solid fa-qrcode mr-1.5"></i> Masuk Cepat QR
+                    <button id="tab-login-qr"
+                        class="flex-1 py-2 text-xs font-semibold rounded-lg text-slate-400 btn-press"
+                        onclick="setLoginMode('qr')">
+                        <i class="fa-solid fa-qrcode mr-1.5"></i>Masuk Cepat QR
                     </button>
                 </div>
 
-                <!-- EMAIL/PASSWORD FORMS CONTAINER -->
-                <div id="login-form-section" class="w-full">
-                    <!-- Email/Password Login Form -->
-                    <form id="form-login" class="w-full space-y-4 mb-4">
-                        <div class="space-y-1">
-                            <label class="block text-xs font-semibold text-slate-400">Email</label>
-                            <input type="email" id="login-email" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-brandPurple min-h-[48px]" placeholder="nama@email.com" required>
+                <!-- FORM SECTION -->
+                <div id="login-form-section">
+                    <!-- Login Form -->
+                    <form id="form-login" class="space-y-3 mb-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 mb-1.5">Email</label>
+                            <input type="email" id="login-email"
+                                class="w-full rounded-xl px-4 py-3 text-sm border"
+                                placeholder="nama@email.com" required>
                         </div>
-                        <div class="space-y-1">
-                            <label class="block text-xs font-semibold text-slate-400">Password</label>
-                            <input type="password" id="login-password" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-brandPurple min-h-[48px]" placeholder="••••••••" required>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 mb-1.5">Password</label>
+                            <div class="relative">
+                                <input type="password" id="login-password"
+                                    class="w-full rounded-xl px-4 py-3 text-sm border pr-10"
+                                    placeholder="••••••••" required>
+                                <button type="button" onclick="togglePasswordVisibility('login-password', this)"
+                                    class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 min-h-0 p-0">
+                                    <i class="fa-solid fa-eye text-xs"></i>
+                                </button>
+                            </div>
                         </div>
-                        <button type="submit" class="w-full min-h-[48px] py-3 px-4 bg-brandPurple hover:bg-brandPurple/95 text-white font-bold rounded-xl text-sm shadow-neon-purple active:scale-[0.98] transition-transform duration-100">
-                            Masuk Ke Akun
+                        <button type="submit"
+                            class="w-full py-3 bg-gradient-to-r from-violet-600 to-violet-500 hover:from-violet-500 hover:to-violet-400 text-white font-bold rounded-xl shadow-violet btn-press text-sm">
+                            <i class="fa-solid fa-arrow-right-to-bracket mr-2"></i>Masuk Sekarang
                         </button>
-                        <div class="text-center mt-2">
-                            <a href="#" id="link-show-register" class="text-xs text-brandPurple hover:underline">Belum punya akun? Daftar di sini</a>
-                        </div>
-                    </form>
-
-                    <!-- Email/Password Register Form -->
-                    <form id="form-register" class="w-full space-y-4 mb-4 hidden">
-                        <div class="space-y-1">
-                            <label class="block text-xs font-semibold text-slate-400">Nama Lengkap</label>
-                            <input type="text" id="register-name" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-brandPurple min-h-[48px]" placeholder="Nama Anda" required>
-                        </div>
-                        <div class="space-y-1">
-                            <label class="block text-xs font-semibold text-slate-400">Email</label>
-                            <input type="email" id="register-email" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-brandPurple min-h-[48px]" placeholder="nama@email.com" required>
-                        </div>
-                        <div class="space-y-1">
-                            <label class="block text-xs font-semibold text-slate-400">Password</label>
-                            <input type="password" id="register-password" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-brandPurple min-h-[48px]" placeholder="Minimal 6 karakter" required>
-                        </div>
-                        <button type="submit" class="w-full min-h-[48px] py-3 px-4 bg-brandTeal hover:bg-brandTeal/95 text-white font-bold rounded-xl text-sm shadow-neon-teal active:scale-[0.98] transition-transform duration-100">
-                            Daftar Akun Baru
-                        </button>
-                        <div class="text-center mt-2">
-                            <a href="#" id="link-show-login" class="text-xs text-brandTeal hover:underline">Sudah punya akun? Masuk di sini</a>
-                        </div>
-                    </form>
-                </div>
-
-                <!-- QR LOGIN CONTAINER -->
-                <div id="login-qr-section" class="w-full hidden flex flex-col items-center justify-center space-y-4 py-2">
-                    <p class="text-xs text-slate-400 text-center px-4 leading-relaxed">
-                        Pilih cara masuk cepat menggunakan QR Code:
-                    </p>
-                    
-                    <div class="grid grid-cols-2 gap-2 bg-slate-800/40 p-1 rounded-xl border border-glassBorder/40 w-full mb-2">
-                        <button id="btn-login-qr-show" class="py-2 text-[10px] font-semibold rounded-lg bg-brandPurple text-white active:scale-95 transition-transform min-h-[32px]" onclick="setLoginQrSubMode('show')">
-                            Tampilkan QR
-                        </button>
-                        <button id="btn-login-qr-scan" class="py-2 text-[10px] font-semibold rounded-lg text-slate-400 hover:text-slate-200 active:scale-95 transition-transform min-h-[32px]" onclick="setLoginQrSubMode('scan')">
-                            Buka Kamera Scan
-                        </button>
-                    </div>
-
-                    <!-- SUBMODE A: SHOW QR (For phone to scan and login this laptop) -->
-                    <div id="login-qr-show-panel" class="flex flex-col items-center justify-center space-y-3 w-full">
-                        <p class="text-[10px] text-slate-400 text-center px-4">
-                            Pindai kode di bawah menggunakan kamera pemindai di HP Anda yang <strong>sudah login</strong>.
+                        <p class="text-center text-xs text-slate-500">
+                            Belum punya akun?
+                            <a href="#" id="link-show-register" class="text-violet-400 hover:text-violet-300 font-semibold">Daftar gratis</a>
                         </p>
-                        <div class="bg-white p-3 rounded-2xl shadow-lg border border-slate-200 flex items-center justify-center w-[160px] h-[160px]">
-                            <div id="login-qrcode-container"></div>
+                    </form>
+
+                    <!-- Register Form -->
+                    <form id="form-register" class="space-y-3 mb-4 hidden">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 mb-1.5">Nama Lengkap</label>
+                            <input type="text" id="register-name"
+                                class="w-full rounded-xl px-4 py-3 text-sm border"
+                                placeholder="Nama toko / usaha Anda" required>
                         </div>
-                        <span class="inline-block bg-brandPurple/15 text-brandPurple border border-brandPurple/20 text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider animate-pulse">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 mb-1.5">Email</label>
+                            <input type="email" id="register-email"
+                                class="w-full rounded-xl px-4 py-3 text-sm border"
+                                placeholder="nama@email.com" required>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 mb-1.5">Password</label>
+                            <input type="password" id="register-password"
+                                class="w-full rounded-xl px-4 py-3 text-sm border"
+                                placeholder="Min. 6 karakter" required>
+                        </div>
+                        <button type="submit"
+                            class="w-full py-3 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white font-bold rounded-xl shadow-emerald btn-press text-sm">
+                            <i class="fa-solid fa-user-plus mr-2"></i>Buat Akun Baru
+                        </button>
+                        <p class="text-center text-xs text-slate-500">
+                            Sudah punya akun?
+                            <a href="#" id="link-show-login" class="text-violet-400 hover:text-violet-300 font-semibold">Masuk di sini</a>
+                        </p>
+                    </form>
+                </div>
+
+                <!-- QR LOGIN SECTION -->
+                <div id="login-qr-section" class="hidden">
+                    <!-- Sub tabs -->
+                    <div class="flex bg-slate-900/40 p-0.5 rounded-xl mb-4 border border-slate-800">
+                        <button id="btn-login-qr-show"
+                            class="flex-1 py-1.5 text-[10px] font-semibold rounded-lg bg-violet-600 text-white btn-press"
+                            onclick="setLoginQrSubMode('show')">
+                            <i class="fa-solid fa-display mr-1"></i>Tampilkan QR
+                        </button>
+                        <button id="btn-login-qr-scan"
+                            class="flex-1 py-1.5 text-[10px] font-semibold rounded-lg text-slate-400 btn-press"
+                            onclick="setLoginQrSubMode('scan')">
+                            <i class="fa-solid fa-camera mr-1"></i>Scan QR
+                        </button>
+                    </div>
+
+                    <!-- SHOW QR Panel -->
+                    <div id="login-qr-show-panel" class="flex flex-col items-center space-y-3 py-2">
+                        <p class="text-[11px] text-slate-400 text-center leading-relaxed">
+                            Scan kode ini dengan HP yang <strong class="text-slate-200">sudah login</strong> untuk masuk otomatis.
+                        </p>
+                        <div class="bg-white p-3 rounded-2xl shadow-lg">
+                            <div id="login-qrcode-container" class="w-36 h-36 flex items-center justify-center">
+                                <div class="shimmer w-full h-full rounded-lg"></div>
+                            </div>
+                        </div>
+                        <span class="flex items-center gap-1.5 text-[10px] font-bold text-violet-400 bg-violet-500/10 border border-violet-500/20 px-3 py-1 rounded-full status-blink">
+                            <span class="w-1.5 h-1.5 bg-violet-400 rounded-full"></span>
                             Menunggu Pemindaian...
                         </span>
                     </div>
 
-                    <!-- SUBMODE B: SCAN QR (For scanning a logged-in laptop's QR to login this phone) -->
-                    <div id="login-qr-scan-panel" class="hidden flex flex-col items-center justify-center space-y-3 w-full">
-                        <p class="text-[10px] text-slate-400 text-center px-4">
-                            Arahkan kamera ke kode QR <strong>"Bagikan Akses"</strong> di laptop yang sudah login.
+                    <!-- SCAN QR Panel -->
+                    <div id="login-qr-scan-panel" class="hidden flex-col items-center space-y-3 py-2">
+                        <p class="text-[11px] text-slate-400 text-center leading-relaxed">
+                            Arahkan kamera ke QR yang tampil di laptop/komputer yang sudah login.
                         </p>
-                        <div class="w-full aspect-square max-w-[200px] bg-slate-900 border border-slate-700 rounded-2xl overflow-hidden relative shadow-inner flex items-center justify-center">
+                        <div class="w-full max-w-[200px] aspect-square bg-slate-900 border border-slate-700 rounded-2xl overflow-hidden relative">
                             <div id="login-qr-reader" class="w-full h-full"></div>
-                            <div id="login-qr-scanner-placeholder" class="absolute inset-0 flex flex-col items-center justify-center space-y-2 pointer-events-none text-slate-600">
-                                <i class="fa-solid fa-camera-rotate text-2xl animate-pulse"></i>
-                                <span class="text-[9px]">Kamera belum aktif...</span>
+                            <div id="login-qr-scanner-placeholder" class="absolute inset-0 flex flex-col items-center justify-center space-y-2 text-slate-600">
+                                <i class="fa-solid fa-camera-rotate text-2xl"></i>
+                                <span class="text-[9px]">Kamera belum aktif</span>
                             </div>
                         </div>
-                        <button id="btn-start-login-scanner" class="bg-slate-800 hover:bg-slate-700 active:bg-slate-900 border border-slate-700 text-slate-200 font-bold text-xs min-h-[40px] py-1.5 px-4 rounded-xl active:scale-95 transition-transform" onclick="startLoginQrScanner()">
-                            <i class="fa-solid fa-play mr-1.5 text-brandTeal"></i>Aktifkan Kamera
+                        <button onclick="startLoginQrScanner()"
+                            class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-semibold text-xs py-2 px-5 rounded-xl btn-press">
+                            <i class="fa-solid fa-play mr-1.5 text-emerald-400"></i>Aktifkan Kamera
                         </button>
                     </div>
                 </div>
 
-                <div class="w-full flex items-center justify-between my-4 text-xs text-slate-500">
-                    <hr class="w-full border-slate-800">
-                    <span class="px-3 whitespace-nowrap">Atau</span>
-                    <hr class="w-full border-slate-800">
+                <!-- Divider -->
+                <div class="flex items-center gap-3 my-4">
+                    <hr class="flex-1 border-slate-800">
+                    <span class="text-xs text-slate-600">atau</span>
+                    <hr class="flex-1 border-slate-800">
                 </div>
 
-                <!-- Demo Access (For trial without setting up Supabase Project keys) -->
-                <button id="btn-demo-mode" class="w-full min-h-[48px] py-3 px-4 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 border border-slate-700 text-slate-200 rounded-xl transition duration-200 flex items-center justify-center font-semibold text-sm active:scale-[0.98] transition-transform duration-100">
-                    <i class="fa-solid fa-flask mr-2 text-indigo-400"></i> Masuk Mode Demo (Uji Coba)
-                </button>
-
-                <p class="text-xs text-slate-500 text-center mt-6 px-4 leading-relaxed">
-                    Dengan masuk, data Anda akan disimpan di database PostgreSQL Supabase Anda secara aman dan terisolasi.
-                </p>
-            </div>
-        </div>
-
-        <!-- 2. MAIN DASHBOARD SCREEN (Hidden by default) -->
-        <div id="dashboard-screen" class="hidden flex-1 flex flex-col">
-            
-            <!-- Traditional Navbar (Desktop Only) -->
-            <header class="hidden md:flex w-full bg-glassBg/40 border-b border-glassBorder backdrop-blur-md sticky top-0 z-30 px-4 md:px-8 py-4 items-center justify-between">
-                <div class="flex items-center space-x-3">
-                    <div class="w-10 h-10 bg-gradient-to-tr from-brandPurple to-indigo-500 rounded-xl flex items-center justify-center shadow-neon-purple">
-                        <i class="fa-solid fa-wallet text-lg text-white"></i>
-                    </div>
-                    <span class="text-xl font-bold bg-gradient-to-r from-white to-indigo-300 bg-clip-text text-transparent hidden sm:inline-block">Librayn Finance</span>
-                </div>
-
-                <!-- Profile and Navigation Controls -->
-                <div class="flex items-center space-x-3">
-                    <!-- Theme Toggle Button -->
-                    <button id="btn-theme-toggle" class="bg-slate-800/80 hover:bg-slate-700/80 border border-glassBorder/40 text-slate-200 p-2.5 rounded-xl transition duration-150 flex items-center justify-center active:scale-95 transition-transform" title="Ubah Tema">
-                        <i class="fa-solid fa-moon text-indigo-400 dark:hidden"></i>
-                        <i class="fa-solid fa-sun hidden dark:inline-block text-yellow-400"></i>
-                    </button>
-
-                    <!-- QR Web Sync Toggle -->
-                    <button id="btn-qr-sync" class="bg-slate-800/80 hover:bg-slate-700/80 border border-glassBorder text-slate-200 p-2.5 rounded-xl transition duration-150 flex items-center space-x-2 text-sm font-semibold shadow-md active:scale-95 transition-transform" title="Sinkronisasi Perangkat">
-                        <i class="fa-solid fa-qrcode text-brandPurple"></i>
-                        <span>Sync Device</span>
-                    </button>
-
-                    <!-- User Profile Info -->
-                    <div class="flex items-center space-x-2 bg-slate-800/50 pl-2 pr-3 py-1.5 rounded-xl border border-glassBorder">
-                        <div class="relative w-7 h-7 rounded-full border border-brandPurple flex items-center justify-center overflow-hidden bg-gradient-to-tr from-brandPurple to-indigo-600 shadow-neon-purple shrink-0">
-                            <img id="user-avatar" src="" alt="Avatar" class="w-full h-full object-cover hidden">
-                            <span id="user-avatar-initial" class="text-[10px] font-extrabold text-white uppercase select-none animate-pulse">U</span>
-                        </div>
-                        <span id="user-name" class="text-xs font-semibold text-slate-300 max-w-[100px] truncate">Pengguna</span>
-                    </div>
-
-                    <!-- Logout Button -->
-                    <button id="btn-logout" class="bg-brandCoral/10 hover:bg-brandCoral/20 text-brandCoral border border-brandCoral/20 p-2.5 rounded-xl transition duration-150 active:scale-95 transition-transform" title="Keluar">
-                        <i class="fa-solid fa-arrow-right-from-bracket"></i>
-                    </button>
-                </div>
-            </header>
-
-            <!-- Main Content Container -->
-            <main class="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 lg:p-8 space-y-6 pb-28 md:pb-8">
-
-                <!-- Mobile User Info Header (Mobile Only) -->
-                <div class="flex md:hidden items-center justify-between bg-glassBg border border-glassBorder backdrop-blur-md rounded-2xl p-4 shadow-glass">
-                    <div class="flex items-center space-x-3">
-                        <div class="relative w-9 h-9 rounded-full border border-brandPurple flex items-center justify-center overflow-hidden bg-gradient-to-tr from-brandPurple to-indigo-600 shadow-neon-purple shrink-0">
-                            <img id="mobile-user-avatar" src="" alt="Avatar" class="w-full h-full object-cover hidden">
-                            <span id="mobile-user-avatar-initial" class="text-xs font-extrabold text-white uppercase select-none animate-pulse">U</span>
-                        </div>
-                        <div>
-                            <span class="block text-[10px] text-slate-400">Selamat datang,</span>
-                            <span id="mobile-user-name" class="block text-xs font-bold text-slate-200">Pengguna</span>
-                        </div>
-                    </div>
-                    <div class="flex items-center space-x-2">
-                        <!-- Theme Toggle Button Mobile -->
-                        <button id="btn-mobile-theme-toggle" class="bg-slate-800/80 hover:bg-slate-700/80 border border-glassBorder/40 text-slate-200 p-2.5 rounded-xl transition duration-150 flex items-center justify-center active:scale-95 transition-transform">
-                            <i class="fa-solid fa-moon text-indigo-400 dark:hidden"></i>
-                            <i class="fa-solid fa-sun hidden dark:inline-block text-yellow-400"></i>
-                        </button>
-                        <button id="btn-mobile-logout" class="bg-brandCoral/10 hover:bg-brandCoral/20 text-brandCoral border border-brandCoral/20 px-3.5 py-2 rounded-xl text-xs font-bold active:scale-95 transition-transform">
-                            <i class="fa-solid fa-arrow-right-from-bracket mr-1"></i> Keluar
-                        </button>
-                    </div>
-                </div>
-
-                <!-- SECTION 1: DASHBOARD VIEW (Stats & Charts) -->
-                <div id="section-dashboard" class="space-y-6">
-                    <!-- Stats Overview Row -->
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        
-                        <!-- Total Balance Card -->
-                        <div class="bg-glassBg border border-glassBorder backdrop-blur-md rounded-2xl p-6 shadow-glass relative overflow-hidden group hover:scale-[1.01] transition-all duration-200">
-                            <div class="absolute -right-4 -bottom-4 w-24 h-24 bg-brandPurple/10 rounded-full blur-2xl group-hover:bg-brandPurple/20 transition-all duration-300"></div>
-                            <div class="flex items-center justify-between mb-4">
-                                <span class="text-slate-400 text-xs font-semibold uppercase tracking-wider">Total Saldo</span>
-                                <div class="w-9 h-9 bg-brandPurple/10 text-brandPurple rounded-lg flex items-center justify-center">
-                                    <i class="fa-solid fa-scale-balanced"></i>
-                                </div>
-                            </div>
-                            <h3 id="stat-total-balance" class="text-2xl font-bold tracking-tight text-white mb-1">Rp 0</h3>
-                            <p class="text-slate-500 text-xs flex items-center">
-                                <i class="fa-solid fa-circle-check text-brandTeal mr-1"></i> Terhubung Supabase
-                            </p>
-                        </div>
-
-                        <!-- Active Income Card -->
-                        <div class="bg-glassBg border border-glassBorder backdrop-blur-md rounded-2xl p-6 shadow-glass relative overflow-hidden group hover:scale-[1.01] transition-all duration-200">
-                            <div class="absolute -right-4 -bottom-4 w-24 h-24 bg-brandTeal/10 rounded-full blur-2xl group-hover:bg-brandTeal/20 transition-all duration-300"></div>
-                            <div class="flex items-center justify-between mb-4">
-                                <span class="text-slate-400 text-xs font-semibold uppercase tracking-wider">Total Pemasukan</span>
-                                <div class="w-9 h-9 bg-brandTeal/10 text-brandTeal rounded-lg flex items-center justify-center">
-                                    <i class="fa-solid fa-arrow-down-long"></i>
-                                </div>
-                            </div>
-                            <h3 id="stat-total-income" class="text-2xl font-bold tracking-tight text-brandTeal mb-1">Rp 0</h3>
-                            <p id="stat-income-desc" class="text-slate-500 text-xs truncate">Bulan ini</p>
-                        </div>
-
-                        <!-- Active Expenses Card -->
-                        <div class="bg-glassBg border border-glassBorder backdrop-blur-md rounded-2xl p-6 shadow-glass relative overflow-hidden group hover:scale-[1.01] transition-all duration-200">
-                            <div class="absolute -right-4 -bottom-4 w-24 h-24 bg-brandCoral/10 rounded-full blur-2xl group-hover:bg-brandCoral/20 transition-all duration-300"></div>
-                            <div class="flex items-center justify-between mb-4">
-                                <span class="text-slate-400 text-xs font-semibold uppercase tracking-wider">Total Pengeluaran</span>
-                                <div class="w-9 h-9 bg-brandCoral/10 text-brandCoral rounded-lg flex items-center justify-center">
-                                    <i class="fa-solid fa-arrow-up-long"></i>
-                                </div>
-                            </div>
-                            <h3 id="stat-total-expense" class="text-2xl font-bold tracking-tight text-brandCoral mb-1">Rp 0</h3>
-                            <p id="stat-expense-desc" class="text-slate-500 text-xs truncate">Bulan ini</p>
-                        </div>
-
-                    </div>
-
-                    <!-- Charts Section Grid -->
-                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        <!-- Line Chart (Cashflow Trend) -->
-                        <div class="bg-glassBg border border-glassBorder backdrop-blur-md rounded-2xl p-5 shadow-glass lg:col-span-2 flex flex-col">
-                            <div class="flex items-center justify-between mb-4">
-                                <div>
-                                    <h4 class="text-md font-bold text-slate-100">Tren Arus Kas</h4>
-                                    <p class="text-slate-400 text-xs">Pemasukan vs Pengeluaran</p>
-                                </div>
-                                <div class="flex space-x-2">
-                                    <select id="chart-filter" class="bg-slate-800 border border-slate-700 text-slate-300 text-xs rounded-xl px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-brandPurple">
-                                        <option value="7">7 Hari</option>
-                                        <option value="30" selected>30 Hari</option>
-                                        <option value="90">90 Hari</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <!-- Responsive Canvas Container -->
-                            <div class="relative w-full h-64">
-                                <canvas id="cashflowChart"></canvas>
-                            </div>
-                        </div>
-
-                        <!-- Doughnut Chart (Categories Breakdowns) -->
-                        <div class="bg-glassBg border border-glassBorder backdrop-blur-md rounded-2xl p-5 shadow-glass flex flex-col">
-                            <h4 class="text-md font-bold text-slate-100 mb-1">Kategori Pengeluaran</h4>
-                            <p class="text-slate-400 text-xs mb-4">Persentase pengeluaran aktif</p>
-                            <!-- Responsive Canvas Container -->
-                            <div class="relative w-full h-64 flex items-center justify-center">
-                                <canvas id="categoryChart"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- API Key Config Drawer / Card (Indonesian Instructions inside UI) -->
-                <div id="section-api-settings" class="bg-glassBg border border-glassBorder backdrop-blur-md rounded-2xl p-5 shadow-glass">
-                    <div class="flex items-center justify-between cursor-pointer" onclick="toggleApiSettings()">
-                        <div class="flex items-center space-x-3">
-                            <div class="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-400 flex items-center justify-center">
-                                <i class="fa-solid fa-key"></i>
-                            </div>
-                            <div>
-                                <h4 class="text-sm font-bold text-slate-200">Pengaturan API & Kredensial</h4>
-                                <p class="text-xs text-slate-400">Atur Supabase URL, Anon Key, dan Gemini API Key</p>
-                            </div>
-                        </div>
-                        <i id="api-settings-chevron" class="fa-solid fa-chevron-down text-slate-400 transition-transform duration-200"></i>
-                    </div>
-                    
-                    <div id="api-settings-panel" class="hidden mt-5 pt-5 border-t border-glassBorder space-y-4">
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div>
-                                <label class="block text-xs font-semibold text-slate-400 mb-1.5">Supabase Project URL</label>
-                                <input type="password" id="input-supabase-url" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-brandPurple" placeholder="https://xxxx.supabase.co">
-                                <p class="text-[10px] text-slate-500 mt-1">Dapatkan dari Settings -> API -> Project URL.</p>
-                            </div>
-                            <div>
-                                <label class="block text-xs font-semibold text-slate-400 mb-1.5">Supabase Anon Key</label>
-                                <input type="password" id="input-supabase-key" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-brandPurple" placeholder="eyJhbGciOi...">
-                                <p class="text-[10px] text-slate-500 mt-1">Dapatkan dari Settings -> API -> anon public key.</p>
-                            </div>
-                            <div>
-                                <label class="block text-xs font-semibold text-slate-400 mb-1.5">Gemini API Key (Google AI Studio)</label>
-                                <input type="password" id="input-gemini-key" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-brandPurple" placeholder="AIzaSy...">
-                                <p class="text-[10px] text-slate-500 mt-1">Digunakan untuk voice parsing dan scanning OCR kuitansi.</p>
-                            </div>
-                        </div>
-                        <div class="flex justify-end pt-2">
-                            <button id="btn-save-settings" class="bg-brandPurple hover:bg-brandPurple/95 active:scale-95 text-white font-semibold text-xs min-h-[44px] py-2 px-4 rounded-xl shadow-md transition-all duration-150">
-                                <i class="fa-solid fa-floppy-disk mr-1.5"></i> Simpan Konfigurasi
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- SECTION 2: TRANSACTIONS VIEW (List & Desktop Card) -->
-                <div id="section-transactions" class="space-y-6">
-                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        
-                        <!-- Recent Transactions list -->
-                        <div class="bg-glassBg border border-glassBorder backdrop-blur-md rounded-2xl p-5 shadow-glass lg:col-span-2 flex flex-col">
-                            <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-3">
-                                <h4 class="text-md font-bold text-slate-100">Daftar Transaksi Terakhir</h4>
-                                <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                                    
-                                    <!-- Elegant Filter Tabs -->
-                                    <div class="flex space-x-1 bg-slate-900/60 p-1 rounded-xl border border-glassBorder w-full sm:w-auto">
-                                        <button id="filter-tx-all" class="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-brandPurple text-white shadow-neon-purple active:scale-95 transition-transform duration-100 min-h-[36px]" onclick="setTxFilter('all')">Semua</button>
-                                        <button id="filter-tx-income" class="px-3.5 py-1.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-slate-200 active:scale-95 transition-transform duration-100 min-h-[36px]" onclick="setTxFilter('income')">Pemasukan</button>
-                                        <button id="filter-tx-expense" class="px-3.5 py-1.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-slate-200 active:scale-95 transition-transform duration-100 min-h-[36px]" onclick="setTxFilter('expense')">Pengeluaran</button>
-                                    </div>
-                                    <div class="relative flex-1 sm:w-44">
-                                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500 pointer-events-none">
-                                            <i class="fa-solid fa-magnifying-glass text-xs"></i>
-                                        </span>
-                                        <input type="text" id="search-tx" class="w-full bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-xl pl-9 pr-3.5 py-2 focus:outline-none focus:ring-1 focus:ring-brandPurple" placeholder="Cari deskripsi...">
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Table or List View -->
-                            <div id="tx-loading-state" class="hidden flex flex-col items-center justify-center py-12 text-slate-500 space-y-2">
-                                <i class="fa-solid fa-circle-notch fa-spin text-xl text-brandPurple"></i>
-                                <span class="text-xs">Memuat data dari Supabase...</span>
-                            </div>
-
-                            <div id="tx-empty-state" class="flex flex-col items-center justify-center py-12 text-slate-500 space-y-2">
-                                <i class="fa-solid fa-receipt text-3xl mb-1 text-slate-600"></i>
-                                <span class="text-xs">Belum ada transaksi terdaftar.</span>
-                            </div>
-
-                            <div class="overflow-y-auto max-h-[480px] pr-1 hidden" id="tx-list-container">
-                                <div class="divide-y divide-glassBorder/50" id="tx-list">
-                                    <!-- Transaction item template -->
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Sticky Add button area (Desktop Only) -->
-                        <div class="bg-glassBg border border-glassBorder backdrop-blur-md rounded-2xl p-6 shadow-glass flex flex-col items-center justify-center text-center space-y-4 hidden md:flex">
-                            <div class="w-16 h-16 rounded-full bg-brandPurple/10 text-brandPurple flex items-center justify-center text-2xl shadow-inner shadow-brandPurple/20 animate-pulse">
-                                <i class="fa-solid fa-plus-minus"></i>
-                            </div>
-                            <div>
-                                <h4 class="text-md font-bold text-white">Input Transaksi Instan</h4>
-                                <p class="text-slate-400 text-xs mt-1.5 leading-relaxed">
-                                    Rekam catatan baru secara manual, menggunakan suara AI, atau pindai foto struk belanja menggunakan OCR.
-                                </p>
-                            </div>
-                            <button id="btn-open-input-modal" class="w-full bg-gradient-to-r from-brandPurple to-indigo-600 hover:from-brandPurple/90 hover:to-indigo-600/90 active:scale-95 text-white font-bold text-sm min-h-[48px] py-3 px-4 rounded-xl shadow-neon-purple transition-all duration-150">
-                                <i class="fa-solid fa-circle-plus mr-1.5"></i> Catat Transaksi Baru
-                            </button>
-                        </div>
-
-                    </div>
-                </div>
-
-            </main>
-
-            <!-- Developer Credits Footer -->
-            <footer class="w-full text-center py-6 border-t border-glassBorder/40 text-slate-500 text-xs mt-8 pb-24 md:pb-6">
-                <p>&copy; 2026 Librayn Finance. Pembuat: <strong>ryanwardiana</strong></p>
-            </footer>
-
-            <!-- FLOATING ACTION BUTTON (FAB) - Mobile Only -->
-            <button id="btn-mobile-fab" class="fixed bottom-20 right-5 z-30 w-14 h-14 rounded-full bg-gradient-to-tr from-brandPurple to-indigo-600 text-white flex items-center justify-center shadow-neon-purple active:scale-95 transition-transform duration-100 md:hidden" onclick="openInputModal()">
-                <i class="fa-solid fa-plus text-xl"></i>
-            </button>
-
-            <!-- BOTTOM NAVIGATION BAR - Mobile Only (Glassmorphism effect) -->
-            <div class="fixed bottom-0 left-0 right-0 z-30 h-16 bg-glassBg border-t border-glassBorder backdrop-blur-md flex md:hidden items-center justify-around px-4 shadow-glass">
-                <button id="btn-nav-dashboard" class="flex flex-col items-center justify-center flex-1 h-full text-brandPurple active:scale-95 transition-transform duration-100" onclick="switchMobileTab('dashboard')">
-                    <i class="fa-solid fa-chart-simple text-lg"></i>
-                    <span class="text-[10px] font-semibold mt-1">Dashboard</span>
-                </button>
-                <button id="btn-nav-transactions" class="flex flex-col items-center justify-center flex-1 h-full text-slate-400 active:scale-95 transition-transform duration-100" onclick="switchMobileTab('transactions')">
-                    <i class="fa-solid fa-receipt text-lg"></i>
-                    <span class="text-[10px] font-semibold mt-1">Transaksi</span>
-                </button>
-                <button id="btn-nav-qr" class="flex flex-col items-center justify-center flex-1 h-full text-slate-400 active:scale-95 transition-transform duration-100" onclick="openQrModal()">
-                    <i class="fa-solid fa-qrcode text-lg"></i>
-                    <span class="text-[10px] font-semibold mt-1">QR Sync</span>
+                <!-- Demo Mode -->
+                <button id="btn-demo-mode"
+                    class="w-full py-2.5 bg-slate-900/60 hover:bg-slate-800 border border-slate-700 text-slate-300 font-semibold rounded-xl btn-press text-xs flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-flask text-amber-400"></i>
+                    Coba Mode Demo (Tanpa Akun)
                 </button>
             </div>
-        </div>
 
+            <!-- Footer hint -->
+            <p class="text-center text-[10px] text-slate-600 mt-5">
+                Data tersimpan aman di Supabase Database Anda sendiri.
+            </p>
+        </div>
     </div>
 
-    <!-- MODAL 1: ULTIMATE INPUT SYSTEM (Responsive: Center dialog on desktop, Bottom-sheet on mobile) -->
-    <div id="modal-input" class="fixed inset-0 z-40 hidden md:items-center justify-center items-end p-0 md:p-4 bg-slate-950/75 transition-opacity duration-200">
-        <div id="modal-input-container" class="w-full md:max-w-lg bg-[#0f172a] border-t md:border border-glassBorder rounded-t-3xl md:rounded-3xl p-6 shadow-glass relative flex flex-col max-h-[85vh] md:max-h-[90vh] overflow-hidden transform translate-y-full md:translate-y-0 transition-transform duration-300 ease-out">
-            
-            <!-- Modal Header -->
-            <div class="flex items-center justify-between pb-4 border-b border-glassBorder mb-4">
-                <div class="flex items-center space-x-2">
-                    <span class="w-3 h-3 rounded-full bg-brandPurple"></span>
-                    <h3 class="text-md font-bold text-white">Catat Transaksi Baru</h3>
+    <!-- ============================= DASHBOARD SCREEN ============================= -->
+    <div id="dashboard-screen" class="hidden relative z-10 min-h-screen flex flex-col">
+
+        <!-- Desktop Navbar -->
+        <header class="hidden md:flex sticky top-0 z-30 glass border-b border-slate-800/60 px-6 py-4 items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-600 to-violet-500 flex items-center justify-center shadow-violet">
+                    <i class="fa-solid fa-sack-dollar text-white text-sm"></i>
                 </div>
-                <button id="btn-close-input-modal" class="text-slate-400 hover:text-white p-2.5 rounded-lg active:scale-95 transition-transform">
-                    <i class="fa-solid fa-xmark text-lg"></i>
+                <span class="text-lg font-black">
+                    <span class="text-white">Saku</span>
+                    <span class="text-gradient-violet">Librayn</span>
+                </span>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <!-- Theme Toggle -->
+                <button id="btn-theme-toggle" onclick="toggleTheme()"
+                    class="w-9 h-9 rounded-xl glass-card border border-slate-700 flex items-center justify-center text-slate-400 hover:text-violet-400 btn-press min-h-0"
+                    title="Toggle Tema">
+                    <i class="fa-solid fa-moon text-xs"></i>
+                </button>
+
+                <!-- QR Sync Button -->
+                <button id="btn-qr-sync" onclick="openQrModal()"
+                    class="flex items-center gap-2 px-3 py-2 glass-card border border-slate-700 rounded-xl text-xs font-semibold text-slate-300 hover:border-violet-500/50 btn-press min-h-0">
+                    <i class="fa-solid fa-qrcode text-violet-400"></i>
+                    Sync Perangkat
+                </button>
+
+                <!-- AI Analysis button -->
+                <button onclick="openAiAnalysisModal()"
+                    class="flex items-center gap-2 px-3 py-2 bg-violet-600/20 border border-violet-500/30 rounded-xl text-xs font-semibold text-violet-300 hover:bg-violet-600/30 btn-press min-h-0">
+                    <i class="fa-solid fa-robot text-violet-400"></i>
+                    Analisis AI
+                </button>
+
+                <!-- User Info -->
+                <div class="flex items-center gap-2 glass-card border border-slate-700 pl-1.5 pr-3 py-1.5 rounded-xl">
+                    <div class="w-7 h-7 rounded-full bg-gradient-to-br from-violet-600 to-violet-500 flex items-center justify-center shadow-violet">
+                        <img id="user-avatar" src="" alt="" class="w-full h-full rounded-full object-cover hidden">
+                        <span id="user-avatar-initial" class="text-[11px] font-black text-white">U</span>
+                    </div>
+                    <span id="user-name" class="text-xs font-semibold text-slate-300 max-w-[100px] truncate">Pengguna</span>
+                </div>
+
+                <!-- Logout -->
+                <button id="btn-logout" onclick="logout()"
+                    class="w-9 h-9 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 flex items-center justify-center text-rose-400 btn-press min-h-0"
+                    title="Keluar">
+                    <i class="fa-solid fa-arrow-right-from-bracket text-xs"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Mobile Header -->
+        <div class="md:hidden flex items-center justify-between p-4 glass border-b border-slate-800/60 sticky top-0 z-30">
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-600 to-violet-500 flex items-center justify-center">
+                    <i class="fa-solid fa-sack-dollar text-white text-xs"></i>
+                </div>
+                <span class="text-base font-black">
+                    <span class="text-white">Saku</span><span class="text-gradient-violet">Librayn</span>
+                </span>
+            </div>
+            <div class="flex items-center gap-2">
+                <div class="flex items-center gap-1.5 glass-card border border-slate-800 px-2 py-1 rounded-xl">
+                    <div class="w-6 h-6 rounded-full bg-gradient-to-br from-violet-600 to-violet-500 flex items-center justify-center">
+                        <img id="mobile-user-avatar" src="" alt="" class="w-full h-full rounded-full object-cover hidden">
+                        <span id="mobile-user-avatar-initial" class="text-[9px] font-black text-white">U</span>
+                    </div>
+                    <span id="mobile-user-name" class="text-[10px] font-semibold text-slate-300 max-w-[70px] truncate">Pengguna</span>
+                </div>
+                <button id="btn-mobile-logout" onclick="logout()"
+                    class="w-8 h-8 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400 min-h-0">
+                    <i class="fa-solid fa-arrow-right-from-bracket text-[10px]"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <main class="flex-1 max-w-7xl w-full mx-auto px-4 md:px-6 lg:px-8 py-6 space-y-6 pb-28 md:pb-10">
+
+            <!-- ---- STATS CARDS ---- -->
+            <div id="section-dashboard" class="space-y-6">
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+
+                    <!-- Balance Card -->
+                    <div class="glass-card rounded-2xl p-5 relative overflow-hidden group hover:border-violet-500/30 transition-all duration-300 border border-transparent">
+                        <div class="absolute -right-6 -top-6 w-24 h-24 bg-violet-500/10 rounded-full blur-2xl group-hover:bg-violet-500/20 transition-all"></div>
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Saldo</span>
+                            <div class="w-8 h-8 rounded-lg bg-violet-500/10 flex items-center justify-center">
+                                <i class="fa-solid fa-wallet text-violet-400 text-xs"></i>
+                            </div>
+                        </div>
+                        <div id="stat-total-balance" class="text-2xl font-black text-white mb-1 count-animate">Rp 0</div>
+                        <p class="text-[10px] text-slate-500 flex items-center gap-1">
+                            <span class="w-1.5 h-1.5 bg-emerald-400 rounded-full status-blink"></span>
+                            Terhubung ke Supabase
+                        </p>
+                    </div>
+
+                    <!-- Income Card -->
+                    <div class="glass-card rounded-2xl p-5 relative overflow-hidden group hover:border-emerald-500/30 transition-all duration-300 border border-transparent">
+                        <div class="absolute -right-6 -top-6 w-24 h-24 bg-emerald-500/10 rounded-full blur-2xl group-hover:bg-emerald-500/20 transition-all"></div>
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Pemasukan</span>
+                            <div class="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                                <i class="fa-solid fa-arrow-trend-up text-emerald-400 text-xs"></i>
+                            </div>
+                        </div>
+                        <div id="stat-total-income" class="text-2xl font-black text-emerald-400 mb-1">Rp 0</div>
+                        <p id="stat-income-desc" class="text-[10px] text-slate-500">Bulan ini</p>
+                    </div>
+
+                    <!-- Expense Card -->
+                    <div class="glass-card rounded-2xl p-5 relative overflow-hidden group hover:border-rose-500/30 transition-all duration-300 border border-transparent">
+                        <div class="absolute -right-6 -top-6 w-24 h-24 bg-rose-500/10 rounded-full blur-2xl group-hover:bg-rose-500/20 transition-all"></div>
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Pengeluaran</span>
+                            <div class="w-8 h-8 rounded-lg bg-rose-500/10 flex items-center justify-center">
+                                <i class="fa-solid fa-arrow-trend-down text-rose-400 text-xs"></i>
+                            </div>
+                        </div>
+                        <div id="stat-total-expense" class="text-2xl font-black text-rose-400 mb-1">Rp 0</div>
+                        <p id="stat-expense-desc" class="text-[10px] text-slate-500">Bulan ini</p>
+                    </div>
+                </div>
+
+                <!-- AI Analysis Card (Compact Banner) -->
+                <div class="ai-card-bg rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+                    <div class="flex items-center gap-3 flex-1 min-w-0">
+                        <div class="w-10 h-10 rounded-xl bg-violet-500/20 border border-violet-500/30 flex items-center justify-center flex-shrink-0">
+                            <i class="fa-solid fa-robot text-violet-400"></i>
+                        </div>
+                        <div class="min-w-0">
+                            <div class="text-sm font-bold text-slate-200">Analisis Usaha AI</div>
+                            <p class="text-[11px] text-slate-400 truncate">Insight personal berdasarkan pola keuangan usahamu</p>
+                        </div>
+                    </div>
+                    <button onclick="openAiAnalysisModal()"
+                        class="flex items-center gap-2 px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white font-bold text-xs rounded-xl btn-press flex-shrink-0 min-h-0">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>Mulai Analisis
+                    </button>
+                </div>
+
+                <!-- Charts Grid -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    <!-- Cashflow Chart -->
+                    <div class="glass-card rounded-2xl p-5 lg:col-span-2 border border-slate-800">
+                        <div class="flex items-center justify-between mb-4">
+                            <div>
+                                <h4 class="text-sm font-bold text-slate-200">Tren Arus Kas</h4>
+                                <p class="text-[11px] text-slate-500 mt-0.5">Pemasukan vs Pengeluaran</p>
+                            </div>
+                            <select id="chart-filter"
+                                class="text-xs rounded-lg px-2.5 py-1.5 border min-h-0 text-slate-400"
+                                onchange="renderCharts()">
+                                <option value="7">7 Hari</option>
+                                <option value="30" selected>30 Hari</option>
+                                <option value="90">90 Hari</option>
+                            </select>
+                        </div>
+                        <div class="relative h-52">
+                            <canvas id="cashflowChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Category Chart -->
+                    <div class="glass-card rounded-2xl p-5 border border-slate-800">
+                        <h4 class="text-sm font-bold text-slate-200 mb-0.5">Kategori</h4>
+                        <p class="text-[11px] text-slate-500 mb-4">Distribusi pengeluaran</p>
+                        <div class="relative h-52">
+                            <canvas id="categoryChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ---- TRANSACTIONS SECTION ---- -->
+            <div id="section-transactions" class="space-y-4">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+                    <!-- Transaction List -->
+                    <div class="glass-card rounded-2xl p-5 border border-slate-800 lg:col-span-2 flex flex-col">
+                        <div class="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
+                            <h4 class="text-sm font-bold text-slate-200 flex-1">Riwayat Transaksi</h4>
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <!-- Filter Tabs -->
+                                <div class="flex bg-slate-900/60 p-0.5 rounded-xl border border-slate-800">
+                                    <button id="filter-tx-all" onclick="setTxFilter('all')"
+                                        class="px-3 py-1.5 text-[10px] font-bold rounded-lg bg-violet-600 text-white btn-press min-h-0">Semua</button>
+                                    <button id="filter-tx-income" onclick="setTxFilter('income')"
+                                        class="px-3 py-1.5 text-[10px] font-bold rounded-lg text-slate-400 btn-press min-h-0">Masuk</button>
+                                    <button id="filter-tx-expense" onclick="setTxFilter('expense')"
+                                        class="px-3 py-1.5 text-[10px] font-bold rounded-lg text-slate-400 btn-press min-h-0">Keluar</button>
+                                </div>
+                                <!-- Search -->
+                                <div class="relative">
+                                    <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-600 text-[10px] pointer-events-none"></i>
+                                    <input type="text" id="search-tx" placeholder="Cari..."
+                                        class="pl-7 pr-3 py-1.5 text-[10px] rounded-xl border w-32 focus:w-40 transition-all"
+                                        oninput="renderTransactionsList(this.value)">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Loading -->
+                        <div id="tx-loading-state" class="hidden flex-col items-center justify-center py-10 gap-2">
+                            <i class="fa-solid fa-circle-notch fa-spin text-violet-500 text-xl"></i>
+                            <span class="text-xs text-slate-500">Memuat dari Supabase...</span>
+                        </div>
+
+                        <!-- Empty -->
+                        <div id="tx-empty-state" class="flex flex-col items-center justify-center py-10 gap-2">
+                            <div class="w-14 h-14 rounded-2xl bg-slate-800 flex items-center justify-center mb-1">
+                                <i class="fa-solid fa-receipt text-slate-600 text-xl"></i>
+                            </div>
+                            <span class="text-sm font-semibold text-slate-500">Belum ada transaksi</span>
+                            <span class="text-xs text-slate-600">Catat transaksi pertama Anda!</span>
+                        </div>
+
+                        <!-- List -->
+                        <div id="tx-list-container" class="hidden overflow-y-auto max-h-96">
+                            <div id="tx-list" class="divide-y divide-slate-800/50"></div>
+                        </div>
+                    </div>
+
+                    <!-- Quick Add + Voice Card (Desktop) -->
+                    <div class="glass-card rounded-2xl p-5 border border-slate-800 hidden md:flex flex-col items-center justify-center text-center space-y-5">
+                        <!-- Big Voice Button -->
+                        <div>
+                            <button id="btn-voice-main" onclick="openInputModal('voice')"
+                                class="w-20 h-20 rounded-full bg-gradient-to-br from-violet-600 to-violet-500 shadow-violet flex items-center justify-center text-white btn-press mb-2 mx-auto">
+                                <i class="fa-solid fa-microphone text-3xl"></i>
+                            </button>
+                            <p class="text-xs font-bold text-slate-300">Catat via Suara</p>
+                            <p class="text-[10px] text-slate-500 mt-0.5">Bicara, AI langsung isi form</p>
+                        </div>
+
+                        <div class="w-full border-t border-slate-800"></div>
+
+                        <!-- Manual Add Button -->
+                        <button onclick="openInputModal('manual')"
+                            class="w-full py-3 bg-gradient-to-r from-violet-600 to-violet-500 text-white font-bold text-sm rounded-xl shadow-violet btn-press">
+                            <i class="fa-solid fa-circle-plus mr-2"></i>Catat Manual
+                        </button>
+
+                        <!-- OCR Button -->
+                        <label for="ocr-image-upload-desktop"
+                            class="w-full py-2.5 flex items-center justify-center gap-2 glass-card border border-slate-700 hover:border-violet-500/40 text-slate-300 font-semibold text-xs rounded-xl cursor-pointer btn-press">
+                            <i class="fa-solid fa-camera text-emerald-400"></i>Scan Kuitansi (OCR)
+                        </label>
+                        <input type="file" id="ocr-image-upload-desktop" class="hidden" accept="image/*" onchange="handleReceiptOCR(event)">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings/API Card -->
+            <div class="glass-card rounded-2xl border border-slate-800 overflow-hidden">
+                <button class="w-full flex items-center justify-between p-5 text-left" onclick="toggleApiSettings()">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-lg bg-slate-700/60 flex items-center justify-center">
+                            <i class="fa-solid fa-gear text-slate-400 text-sm"></i>
+                        </div>
+                        <div>
+                            <div class="text-sm font-bold text-slate-200">Pengaturan API & Kredensial</div>
+                            <p class="text-[10px] text-slate-500">Supabase URL, Anon Key, dan Gemini API Key</p>
+                        </div>
+                    </div>
+                    <i id="api-settings-chevron" class="fa-solid fa-chevron-down text-slate-500 text-xs transition-transform duration-200"></i>
+                </button>
+                <div id="api-settings-panel" class="hidden px-5 pb-5 border-t border-slate-800 pt-5">
+                    <!-- Gemini How-to banner -->
+                    <div class="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 mb-4 flex gap-3 items-start">
+                        <i class="fa-solid fa-circle-info text-amber-400 text-sm mt-0.5 flex-shrink-0"></i>
+                        <div>
+                            <p class="text-xs font-bold text-amber-300 mb-1">Cara Mendapatkan Gemini API Key (untuk Voice & OCR):</p>
+                            <ol class="text-[10px] text-amber-200/70 space-y-0.5 list-decimal list-inside">
+                                <li>Buka <strong>aistudio.google.com</strong> di browser Anda.</li>
+                                <li>Login dengan akun Google, klik <strong>"Get API Key"</strong>.</li>
+                                <li>Klik <strong>"Create API Key"</strong> &rarr; salin kunci yang muncul (diawali AIza...).</li>
+                                <li>Tempel kunci tersebut ke kolom Gemini API Key di bawah, lalu klik Simpan.</li>
+                            </ol>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        <div>
+                            <label class="block text-[10px] font-semibold text-slate-400 mb-1.5">Supabase Project URL</label>
+                            <input type="password" id="input-supabase-url" class="w-full rounded-xl px-3.5 py-2.5 text-xs border" placeholder="https://xxxx.supabase.co">
+                            <p class="text-[9px] text-slate-600 mt-1">Settings → API → Project URL</p>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-semibold text-slate-400 mb-1.5">Supabase Anon Key</label>
+                            <input type="password" id="input-supabase-key" class="w-full rounded-xl px-3.5 py-2.5 text-xs border" placeholder="eyJhbGciOi...">
+                            <p class="text-[9px] text-slate-600 mt-1">Settings → API → anon public</p>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-semibold text-slate-400 mb-1.5">Gemini API Key</label>
+                            <input type="password" id="input-gemini-key" class="w-full rounded-xl px-3.5 py-2.5 text-xs border" placeholder="AIzaSy...">
+                            <p class="text-[9px] text-slate-600 mt-1">aistudio.google.com → Get API Key</p>
+                        </div>
+                    </div>
+                    <div class="flex justify-end">
+                        <button id="btn-save-settings" onclick="saveApiSettings()"
+                            class="py-2 px-5 bg-violet-600 hover:bg-violet-500 text-white font-bold text-xs rounded-xl btn-press min-h-0">
+                            <i class="fa-solid fa-floppy-disk mr-1.5"></i>Simpan Konfigurasi
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="text-center py-5 text-slate-700 text-[10px] border-t border-slate-900 pb-24 md:pb-6">
+            &copy; 2026 Saku Librayn. Pembuat: <strong class="text-slate-600">ryanwardiana</strong>
+        </footer>
+
+        <!-- Mobile FAB -->
+        <div class="fixed bottom-20 right-4 z-30 md:hidden flex flex-col-reverse gap-3">
+            <!-- Voice FAB -->
+            <button id="btn-mobile-voice-fab"
+                class="w-14 h-14 rounded-full bg-gradient-to-br from-violet-600 to-violet-500 shadow-violet flex items-center justify-center text-white btn-press"
+                onclick="openInputModal('voice')">
+                <i class="fa-solid fa-microphone text-xl"></i>
+            </button>
+        </div>
+
+        <!-- Mobile Bottom Nav -->
+        <div class="fixed bottom-0 left-0 right-0 z-30 h-16 glass border-t border-slate-800/60 flex md:hidden items-center justify-around px-2">
+            <button id="btn-nav-dashboard" onclick="switchMobileTab('dashboard')"
+                class="flex flex-col items-center gap-0.5 flex-1 py-2 text-violet-400 min-h-0">
+                <i class="fa-solid fa-chart-pie text-base"></i>
+                <span class="text-[9px] font-semibold">Dashboard</span>
+            </button>
+            <button id="btn-nav-transactions" onclick="switchMobileTab('transactions')"
+                class="flex flex-col items-center gap-0.5 flex-1 py-2 text-slate-500 min-h-0">
+                <i class="fa-solid fa-receipt text-base"></i>
+                <span class="text-[9px] font-semibold">Transaksi</span>
+            </button>
+            <button onclick="openQrModal()"
+                class="flex flex-col items-center gap-0.5 flex-1 py-2 text-slate-500 min-h-0">
+                <i class="fa-solid fa-qrcode text-base"></i>
+                <span class="text-[9px] font-semibold">QR Sync</span>
+            </button>
+            <button onclick="openAiAnalysisModal()"
+                class="flex flex-col items-center gap-0.5 flex-1 py-2 text-slate-500 min-h-0">
+                <i class="fa-solid fa-robot text-base"></i>
+                <span class="text-[9px] font-semibold">AI Usaha</span>
+            </button>
+            <button onclick="toggleTheme()"
+                class="flex flex-col items-center gap-0.5 flex-1 py-2 text-slate-500 min-h-0">
+                <i class="fa-solid fa-moon text-base"></i>
+                <span class="text-[9px] font-semibold">Tema</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- ============================= MODAL 1: TRANSACTION INPUT ============================= -->
+    <div id="modal-input" class="fixed inset-0 z-50 hidden items-end md:items-center justify-center p-0 md:p-4 bg-slate-950/80">
+        <div id="modal-input-container"
+            class="w-full md:max-w-lg glass border-t border-slate-700 md:border md:border-slate-700 rounded-t-3xl md:rounded-3xl p-6 shadow-card flex flex-col max-h-[92vh] md:max-h-[90vh] bottom-sheet">
+            <!-- Handle bar (mobile) -->
+            <div class="w-10 h-1 bg-slate-700 rounded-full mx-auto mb-4 md:hidden"></div>
+
+            <!-- Header -->
+            <div class="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
+                <div class="flex items-center gap-2">
+                    <div class="w-2 h-2 rounded-full bg-violet-500"></div>
+                    <h3 class="text-sm font-bold text-slate-200">Catat Transaksi Baru</h3>
+                </div>
+                <button onclick="closeInputModal()" class="w-8 h-8 rounded-lg glass-card border border-slate-700 flex items-center justify-center text-slate-400 hover:text-white min-h-0">
+                    <i class="fa-solid fa-xmark text-xs"></i>
                 </button>
             </div>
 
-            <!-- Modal Content (Scrollable) -->
-            <div class="flex-1 overflow-y-auto space-y-4 pr-1">
-                
-                <!-- Type Selection (Income vs Expense) -->
-                <div class="grid grid-cols-2 gap-2 bg-slate-900/60 p-1 rounded-xl border border-glassBorder">
-                    <button id="tab-type-expense" class="py-2.5 text-xs font-semibold rounded-lg bg-brandCoral text-white shadow-neon-coral transition-all duration-150 min-h-[40px] active:scale-95 transition-transform" onclick="setInputType('expense')">
-                        <i class="fa-solid fa-arrow-trend-down mr-1.5"></i> Pengeluaran
+            <!-- Scrollable Content -->
+            <div class="flex-1 overflow-y-auto space-y-4 pr-0.5">
+
+                <!-- Type Toggle -->
+                <div class="flex bg-slate-900 p-0.5 rounded-2xl border border-slate-800">
+                    <button id="tab-type-expense" onclick="setInputType('expense')"
+                        class="flex-1 py-2.5 text-xs font-bold rounded-xl bg-rose-600 text-white btn-press">
+                        <i class="fa-solid fa-arrow-up mr-1.5"></i>Pengeluaran
                     </button>
-                    <button id="tab-type-income" class="py-2.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-slate-200 transition-all duration-150 min-h-[40px] active:scale-95 transition-transform" onclick="setInputType('income')">
-                        <i class="fa-solid fa-arrow-trend-up mr-1.5"></i> Pemasukan
+                    <button id="tab-type-income" onclick="setInputType('income')"
+                        class="flex-1 py-2.5 text-xs font-bold rounded-xl text-slate-400 btn-press">
+                        <i class="fa-solid fa-arrow-down mr-1.5"></i>Pemasukan
                     </button>
                 </div>
 
-                <!-- AI Quick Inputs (Voice and OCR) -->
-                <div class="grid grid-cols-2 gap-3">
-                    <!-- Voice Input Button -->
-                    <div class="flex flex-col">
-                        <button id="btn-voice-input" class="bg-slate-800/80 hover:bg-slate-700 active:bg-slate-900 border border-slate-700/80 p-3 rounded-2xl flex items-center justify-center space-x-2.5 transition duration-150 cursor-pointer min-h-[48px] active:scale-95 transition-transform">
-                            <span class="relative flex h-5 w-5 items-center justify-center">
-                                <i class="fa-solid fa-microphone text-brandPurple text-sm"></i>
-                            </span>
-                            <span class="text-xs font-bold text-slate-300">Perekam Suara</span>
+                <!-- Voice Section -->
+                <div class="glass-card rounded-2xl p-4 border border-slate-800">
+                    <p class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-3">Input Cepat</p>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button id="btn-voice-input" onclick="startVoiceRecording()"
+                            class="flex items-center justify-center gap-2 py-3 bg-violet-600/10 hover:bg-violet-600/20 border border-violet-500/20 hover:border-violet-500/40 rounded-xl text-xs font-bold text-violet-300 btn-press min-h-0 transition-all">
+                            <i class="fa-solid fa-microphone text-violet-400"></i>Rekam Suara
                         </button>
-                    </div>
-
-                    <!-- OCR Image Input Trigger -->
-                    <div class="flex flex-col">
-                        <label for="ocr-image-upload" class="bg-slate-800/80 hover:bg-slate-700 active:bg-slate-900 border border-slate-700/80 p-3 rounded-2xl flex items-center justify-center space-x-2.5 transition duration-150 cursor-pointer min-h-[48px] active:scale-95 transition-transform">
-                            <i class="fa-solid fa-camera text-brandTeal text-sm"></i>
-                            <span class="text-xs font-bold text-slate-300">Foto Kuitansi</span>
+                        <label for="ocr-image-upload"
+                            class="flex items-center justify-center gap-2 py-3 bg-emerald-600/10 hover:bg-emerald-600/20 border border-emerald-500/20 hover:border-emerald-500/40 rounded-xl text-xs font-bold text-emerald-300 cursor-pointer btn-press transition-all">
+                            <i class="fa-solid fa-camera text-emerald-400"></i>Foto Kuitansi
                         </label>
-                        <input type="file" id="ocr-image-upload" class="hidden" accept="image/*">
+                        <input type="file" id="ocr-image-upload" class="hidden" accept="image/*" onchange="handleReceiptOCR(event)">
                     </div>
-                </div>
 
-                <!-- Speech Processing / Scanning Animation Overlay Box -->
-                <div id="ai-processing-box" class="hidden p-3 bg-brandPurple/10 border border-brandPurple/20 rounded-2xl text-xs space-y-2 relative">
-                    <div class="flex items-center space-x-2">
-                        <i id="ai-processing-icon" class="fa-solid fa-circle-notch fa-spin text-brandPurple"></i>
-                        <span id="ai-processing-status" class="font-semibold text-brandPurple">Sedang merekam suara... Bicara sekarang.</span>
+                    <!-- AI Processing Box -->
+                    <div id="ai-processing-box" class="hidden mt-3 p-3 bg-violet-600/10 border border-violet-500/20 rounded-xl">
+                        <div class="flex items-center gap-2 mb-1.5">
+                            <i id="ai-processing-icon" class="fa-solid fa-circle-notch fa-spin text-violet-400 text-xs"></i>
+                            <span id="ai-processing-status" class="text-xs font-semibold text-violet-300">Memproses...</span>
+                        </div>
+                        <p id="ai-transcript-preview" class="text-[10px] text-slate-400 italic leading-relaxed"></p>
                     </div>
-                    <div id="ai-transcript-preview" class="text-slate-400 italic"></div>
-                </div>
 
-                <!-- Receipt Image Preview and Scan Indicator -->
-                <div id="ocr-preview-box" class="hidden p-3 bg-slate-900 border border-glassBorder rounded-2xl relative">
-                    <button id="btn-remove-ocr-img" class="absolute top-2 right-2 bg-slate-950/80 hover:bg-slate-950 text-brandCoral w-6 h-6 rounded-full flex items-center justify-center z-10">
-                        <i class="fa-solid fa-trash-can text-xs"></i>
-                    </button>
-                    <div class="flex items-center space-x-3">
-                        <img id="ocr-img-thumbnail" src="" class="w-12 h-16 object-cover rounded-lg border border-slate-700">
-                        <div class="flex-1 min-w-0">
-                            <span class="block text-xs font-semibold text-slate-300 truncate" id="ocr-file-name">receipt.jpg</span>
-                            <span class="block text-[10px] text-slate-500" id="ocr-file-size">145 KB</span>
-                            <div class="w-full bg-slate-800 rounded-full h-1.5 mt-1.5 overflow-hidden">
-                                <div id="ocr-progress-bar" class="bg-brandTeal h-1.5 w-0 transition-all duration-300"></div>
+                    <!-- OCR Preview -->
+                    <div id="ocr-preview-box" class="hidden mt-3 p-3 glass-card border border-slate-700 rounded-xl relative">
+                        <button id="btn-remove-ocr-img" onclick="clearOCRPreview()"
+                            class="absolute top-2 right-2 w-6 h-6 rounded-full bg-rose-600/20 text-rose-400 flex items-center justify-center min-h-0">
+                            <i class="fa-solid fa-xmark text-[9px]"></i>
+                        </button>
+                        <div class="flex items-center gap-3">
+                            <img id="ocr-img-thumbnail" src="" class="w-12 h-16 object-cover rounded-lg border border-slate-700">
+                            <div class="flex-1 min-w-0">
+                                <span id="ocr-file-name" class="block text-xs font-semibold text-slate-300 truncate">receipt.jpg</span>
+                                <span id="ocr-file-size" class="block text-[10px] text-slate-500">0 KB</span>
+                                <div class="w-full bg-slate-800 rounded-full h-1 mt-2">
+                                    <div id="ocr-progress-bar" class="bg-emerald-500 h-1 rounded-full w-0 transition-all duration-500"></div>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- AMOUNT FIELD & CALCULATOR WRAPPER -->
-                <div class="space-y-1">
-                    <label class="block text-xs font-semibold text-slate-400">Nominal Transaksi (Rp)</label>
-                    <div class="relative bg-slate-800 border border-slate-700 rounded-2xl px-4 py-3 flex items-center focus-within:border-brandPurple">
-                        <span class="text-md font-bold text-slate-400 mr-2">Rp</span>
-                        <input type="text" id="input-amount" class="w-full bg-transparent text-xl font-bold text-white focus:outline-none min-h-[36px]" placeholder="0">
-                        
-                        <!-- Toggle Calculator Button -->
-                        <button id="btn-toggle-calc" class="ml-2 bg-slate-700/80 text-brandPurple hover:bg-slate-700 p-2 rounded-xl transition duration-150 active:scale-95 transition-transform">
-                            <i class="fa-solid fa-calculator text-sm"></i>
+                <!-- Amount Field -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 mb-1.5">Nominal (Rp)</label>
+                    <div class="flex items-center gap-2 bg-slate-900 border border-slate-700 rounded-2xl px-4 py-3 focus-within:border-violet-500/70">
+                        <span class="text-sm font-bold text-slate-500 flex-shrink-0">Rp</span>
+                        <input type="text" id="input-amount"
+                            class="flex-1 bg-transparent text-xl font-black text-white focus:outline-none border-none !shadow-none min-h-0"
+                            placeholder="0" inputmode="numeric">
+                        <button id="btn-toggle-calc" onclick="toggleCalcPad()"
+                            class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-violet-400 min-h-0 flex-shrink-0">
+                            <i class="fa-solid fa-calculator text-xs"></i>
                         </button>
                     </div>
-                    
-                    <!-- CALCULATOR KEYPAD (Always Visible by default) -->
-                    <div id="calculator-keypad" class="grid grid-cols-4 gap-2 bg-slate-900/80 p-3 rounded-2xl border border-glassBorder mt-2 transition-all duration-300">
-                        <!-- Row 1 -->
-                        <button type="button" class="py-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 rounded-xl font-bold text-slate-200 text-sm active:scale-95 transition-transform duration-100 min-h-[44px]" onclick="pressCalc('C')">C</button>
-                        <button type="button" class="py-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 rounded-xl font-bold text-slate-200 text-sm active:scale-95 transition-transform duration-100 min-h-[44px]" onclick="pressCalc('/')">/</button>
-                        <button type="button" class="py-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 rounded-xl font-bold text-slate-200 text-sm active:scale-95 transition-transform duration-100 min-h-[44px]" onclick="pressCalc('*')">×</button>
-                        <button type="button" class="py-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 rounded-xl font-bold text-brandCoral text-sm active:scale-95 transition-transform duration-100 min-h-[44px]" onclick="pressCalc('DEL')"><i class="fa-solid fa-delete-left"></i></button>
-                        <!-- Row 2 -->
-                        <button type="button" class="py-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 rounded-xl font-bold text-slate-200 text-sm active:scale-95 transition-transform duration-100 min-h-[44px]" onclick="pressCalc('7')">7</button>
-                        <button type="button" class="py-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 rounded-xl font-bold text-slate-200 text-sm active:scale-95 transition-transform duration-100 min-h-[44px]" onclick="pressCalc('8')">8</button>
-                        <button type="button" class="py-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 rounded-xl font-bold text-slate-200 text-sm active:scale-95 transition-transform duration-100 min-h-[44px]" onclick="pressCalc('9')">9</button>
-                        <button type="button" class="py-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 rounded-xl font-bold text-slate-200 text-sm active:scale-95 transition-transform duration-100 min-h-[44px]" onclick="pressCalc('-')">-</button>
-                        <!-- Row 3 -->
-                        <button type="button" class="py-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 rounded-xl font-bold text-slate-200 text-sm active:scale-95 transition-transform duration-100 min-h-[44px]" onclick="pressCalc('4')">4</button>
-                        <button type="button" class="py-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 rounded-xl font-bold text-slate-200 text-sm active:scale-95 transition-transform duration-100 min-h-[44px]" onclick="pressCalc('5')">5</button>
-                        <button type="button" class="py-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 rounded-xl font-bold text-slate-200 text-sm active:scale-95 transition-transform duration-100 min-h-[44px]" onclick="pressCalc('6')">6</button>
-                        <button type="button" class="py-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 rounded-xl font-bold text-slate-200 text-sm active:scale-95 transition-transform duration-100 min-h-[44px]" onclick="pressCalc('+')">+</button>
-                        <!-- Row 4 -->
-                        <button type="button" class="py-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 rounded-xl font-bold text-slate-200 text-sm active:scale-95 transition-transform duration-100 min-h-[44px]" onclick="pressCalc('1')">1</button>
-                        <button type="button" class="py-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 rounded-xl font-bold text-slate-200 text-sm active:scale-95 transition-transform duration-100 min-h-[44px]" onclick="pressCalc('2')">2</button>
-                        <button type="button" class="py-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 rounded-xl font-bold text-slate-200 text-sm active:scale-95 transition-transform duration-100 min-h-[44px]" onclick="pressCalc('3')">3</button>
-                        <!-- Equal button spans 2 rows tall -->
-                        <button type="button" class="row-span-2 py-3 bg-brandPurple hover:bg-brandPurple/90 active:bg-indigo-900 rounded-xl font-bold text-white text-md flex items-center justify-center active:scale-95 transition-transform duration-100 min-h-[92px]" onclick="pressCalc('=')">=</button>
-                        <!-- Row 5 -->
-                        <button type="button" class="py-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 rounded-xl font-bold text-slate-200 text-sm active:scale-95 transition-transform duration-100 min-h-[44px]" onclick="pressCalc('0')">0</button>
-                        <button type="button" class="py-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 rounded-xl font-bold text-slate-200 text-sm active:scale-95 transition-transform duration-100 min-h-[44px]" onclick="pressCalc('000')">000</button>
-                        <button type="button" class="py-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 rounded-xl font-bold text-slate-200 text-sm active:scale-95 transition-transform duration-100 min-h-[44px]" onclick="pressCalc('.')">.</button>
+
+                    <!-- Calculator Pad -->
+                    <div id="calculator-keypad" class="grid grid-cols-4 gap-1.5 bg-slate-900/80 p-3 rounded-2xl border border-slate-800 mt-2">
+                        <button type="button" onclick="pressCalc('C')" class="py-2.5 bg-slate-800 hover:bg-slate-700 rounded-xl font-bold text-slate-300 text-xs btn-press min-h-0">C</button>
+                        <button type="button" onclick="pressCalc('/')" class="py-2.5 bg-slate-800 hover:bg-slate-700 rounded-xl font-bold text-slate-400 text-sm btn-press min-h-0">÷</button>
+                        <button type="button" onclick="pressCalc('*')" class="py-2.5 bg-slate-800 hover:bg-slate-700 rounded-xl font-bold text-slate-400 text-sm btn-press min-h-0">×</button>
+                        <button type="button" onclick="pressCalc('DEL')" class="py-2.5 bg-slate-800 hover:bg-slate-700 rounded-xl font-bold text-rose-400 btn-press min-h-0"><i class="fa-solid fa-delete-left text-xs"></i></button>
+                        <button type="button" onclick="pressCalc('7')" class="py-2.5 bg-slate-800/60 hover:bg-slate-700 rounded-xl font-bold text-slate-200 text-sm btn-press min-h-0">7</button>
+                        <button type="button" onclick="pressCalc('8')" class="py-2.5 bg-slate-800/60 hover:bg-slate-700 rounded-xl font-bold text-slate-200 text-sm btn-press min-h-0">8</button>
+                        <button type="button" onclick="pressCalc('9')" class="py-2.5 bg-slate-800/60 hover:bg-slate-700 rounded-xl font-bold text-slate-200 text-sm btn-press min-h-0">9</button>
+                        <button type="button" onclick="pressCalc('-')" class="py-2.5 bg-slate-800 hover:bg-slate-700 rounded-xl font-bold text-slate-400 text-sm btn-press min-h-0">-</button>
+                        <button type="button" onclick="pressCalc('4')" class="py-2.5 bg-slate-800/60 hover:bg-slate-700 rounded-xl font-bold text-slate-200 text-sm btn-press min-h-0">4</button>
+                        <button type="button" onclick="pressCalc('5')" class="py-2.5 bg-slate-800/60 hover:bg-slate-700 rounded-xl font-bold text-slate-200 text-sm btn-press min-h-0">5</button>
+                        <button type="button" onclick="pressCalc('6')" class="py-2.5 bg-slate-800/60 hover:bg-slate-700 rounded-xl font-bold text-slate-200 text-sm btn-press min-h-0">6</button>
+                        <button type="button" onclick="pressCalc('+')" class="py-2.5 bg-slate-800 hover:bg-slate-700 rounded-xl font-bold text-slate-400 text-sm btn-press min-h-0">+</button>
+                        <button type="button" onclick="pressCalc('1')" class="py-2.5 bg-slate-800/60 hover:bg-slate-700 rounded-xl font-bold text-slate-200 text-sm btn-press min-h-0">1</button>
+                        <button type="button" onclick="pressCalc('2')" class="py-2.5 bg-slate-800/60 hover:bg-slate-700 rounded-xl font-bold text-slate-200 text-sm btn-press min-h-0">2</button>
+                        <button type="button" onclick="pressCalc('3')" class="py-2.5 bg-slate-800/60 hover:bg-slate-700 rounded-xl font-bold text-slate-200 text-sm btn-press min-h-0">3</button>
+                        <button type="button" onclick="pressCalc('=')" class="row-span-2 bg-violet-600 hover:bg-violet-500 rounded-xl font-black text-white text-lg btn-press min-h-[80px]">=</button>
+                        <button type="button" onclick="pressCalc('0')" class="py-2.5 bg-slate-800/60 hover:bg-slate-700 rounded-xl font-bold text-slate-200 text-sm btn-press min-h-0">0</button>
+                        <button type="button" onclick="pressCalc('000')" class="py-2.5 bg-slate-800/60 hover:bg-slate-700 rounded-xl font-bold text-slate-200 text-xs btn-press min-h-0">000</button>
+                        <button type="button" onclick="pressCalc('.')" class="py-2.5 bg-slate-800/60 hover:bg-slate-700 rounded-xl font-bold text-slate-200 text-sm btn-press min-h-0">.</button>
                     </div>
                 </div>
 
-                <!-- CATEGORY FIELD -->
-                <div class="space-y-1">
-                    <label class="block text-xs font-semibold text-slate-400">Kategori</label>
-                    <select id="input-category" class="w-full bg-slate-800 border border-slate-700 rounded-2xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-brandPurple min-h-[48px]">
-                        <!-- Categories dynamically updated but standard list here -->
-                        <option value="Makanan & Minuman">Makanan & Minuman</option>
-                        <option value="Transportasi">Transportasi</option>
-                        <option value="Belanja">Belanja</option>
-                        <option value="Tagihan & Utilitas">Tagihan & Utilitas</option>
-                        <option value="Hiburan & Rekreasi">Hiburan & Rekreasi</option>
-                        <option value="Gaji / Pemasukan">Gaji / Pemasukan</option>
-                        <option value="Investasi">Investasi</option>
-                        <option value="Lainnya" selected>Lainnya</option>
+                <!-- Category -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 mb-1.5">Kategori</label>
+                    <select id="input-category" class="w-full rounded-xl px-4 py-3 text-sm border">
+                        <option value="Makanan &amp; Minuman">🍜 Makanan &amp; Minuman</option>
+                        <option value="Transportasi">🚗 Transportasi</option>
+                        <option value="Belanja">🛍️ Belanja</option>
+                        <option value="Tagihan &amp; Utilitas">⚡ Tagihan &amp; Utilitas</option>
+                        <option value="Hiburan &amp; Rekreasi">🎮 Hiburan &amp; Rekreasi</option>
+                        <option value="Gaji / Pemasukan">💰 Gaji / Pemasukan</option>
+                        <option value="Investasi">📈 Investasi</option>
+                        <option value="Lainnya" selected>📦 Lainnya</option>
                     </select>
                 </div>
 
-                <!-- DATE FIELD -->
-                <div class="space-y-1">
-                    <label class="block text-xs font-semibold text-slate-400">Tanggal</label>
-                    <input type="date" id="input-date" class="w-full bg-slate-800 border border-slate-700 rounded-2xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-brandPurple min-h-[48px]">
+                <!-- Date -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 mb-1.5">Tanggal</label>
+                    <input type="date" id="input-date" class="w-full rounded-xl px-4 py-3 text-sm border">
                 </div>
 
-                <!-- DESCRIPTION FIELD -->
-                <div class="space-y-1">
-                    <label class="block text-xs font-semibold text-slate-400">Keterangan / Catatan</label>
-                    <input type="text" id="input-description" class="w-full bg-slate-800 border border-slate-700 rounded-2xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-brandPurple min-h-[48px]" placeholder="Belanja bulanan di supermarket...">
+                <!-- Description -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 mb-1.5">Keterangan</label>
+                    <input type="text" id="input-description"
+                        class="w-full rounded-xl px-4 py-3 text-sm border"
+                        placeholder="Jual nasi bungkus, beli bahan baku...">
                 </div>
-
             </div>
 
-            <!-- Modal Footer -->
-            <div class="pt-4 border-t border-glassBorder mt-4 flex space-x-2 pb-6 md:pb-0">
-                <button id="btn-cancel-tx" class="flex-1 min-h-[48px] py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-xl text-sm transition-all duration-150 active:scale-95 transition-transform">Batal</button>
-                <button id="btn-submit-tx" class="flex-1 min-h-[48px] py-3 px-4 bg-brandPurple hover:bg-brandPurple/95 text-white font-bold rounded-xl text-sm shadow-neon-purple transition-all duration-150 active:scale-95 transition-transform">Simpan Transaksi</button>
+            <!-- Footer Actions -->
+            <div class="flex gap-2 pt-4 border-t border-slate-800 mt-4 pb-2">
+                <button onclick="closeInputModal()"
+                    class="flex-1 py-3 glass-card border border-slate-700 text-slate-300 font-semibold text-sm rounded-xl btn-press">
+                    Batal
+                </button>
+                <button onclick="submitTransaction()"
+                    class="flex-1 py-3 bg-gradient-to-r from-violet-600 to-violet-500 text-white font-bold text-sm rounded-xl shadow-violet btn-press">
+                    <i class="fa-solid fa-check mr-1.5"></i>Simpan
+                </button>
             </div>
-
         </div>
     </div>
 
-    <!-- MODAL 2: QR SYNC AND DEVICE PAIRING (Centered Pop-Up) -->
-    <div id="modal-qr-sync" class="fixed inset-0 z-40 hidden items-center justify-center p-4 bg-slate-950/75">
-        <div class="w-full max-w-md bg-[#0f172a] border border-glassBorder backdrop-blur-md rounded-3xl p-6 shadow-glass relative flex flex-col max-h-[90vh] overflow-hidden">
-            
-            <!-- Modal Header -->
-            <div class="flex items-center justify-between pb-4 border-b border-glassBorder mb-4">
-                <h3 class="text-md font-bold text-white"><i class="fa-solid fa-qrcode mr-2 text-brandPurple"></i>Sync Session Perangkat</h3>
-                <button id="btn-close-qr-modal" class="text-slate-400 hover:text-white p-2.5 rounded-lg active:scale-95 transition-transform">
-                    <i class="fa-solid fa-xmark text-lg"></i>
-                </button>
-            </div>
-
-            <!-- Sync Tabs (Generate vs Scan) -->
-            <div class="grid grid-cols-2 gap-2 bg-slate-900/60 p-1 rounded-xl border border-glassBorder mb-5">
-                <button id="tab-qr-share" class="py-2.5 text-xs font-semibold rounded-lg bg-brandPurple text-white shadow-neon-purple active:scale-95 transition-transform min-h-[36px]" onclick="setQrMode('share')">
-                    <i class="fa-solid fa-share-nodes mr-1.5"></i> Bagikan Akses
-                </button>
-                <button id="tab-qr-scan" class="py-2.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-slate-200 active:scale-95 transition-transform min-h-[36px]" onclick="setQrMode('scan')">
-                    <i class="fa-solid fa-qrcode mr-1.5"></i> Pindai Kode QR
-                </button>
-            </div>
-
-            <!-- TAB CONTENT A: SHARE SESSION (Generate QR) -->
-            <div id="qr-share-section" class="flex flex-col items-center justify-center space-y-4 py-2">
-                <p class="text-xs text-slate-400 text-center px-4 leading-relaxed">
-                    Pindai kode QR di bawah menggunakan perangkat mobile untuk login secara instan tanpa perlu memasukkan akun kembali.
-                </p>
-                <!-- QR Image Holder -->
-                <div class="bg-white p-4 rounded-2xl shadow-lg border border-slate-200 flex items-center justify-center w-[200px] h-[200px]">
-                    <div id="qrcode-container"></div>
+    <!-- ============================= MODAL 2: QR SYNC ============================= -->
+    <div id="modal-qr-sync" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-950/80">
+        <div class="w-full max-w-sm glass rounded-3xl p-6 shadow-card border border-slate-700">
+            <div class="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-qrcode text-violet-400"></i>
+                    <h3 class="text-sm font-bold text-slate-200">Sync Session Perangkat</h3>
                 </div>
-                <div class="text-center">
-                    <span class="inline-block bg-brandTeal/15 text-brandTeal border border-brandTeal/20 text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider animate-pulse">
-                        Sesi Aktif
-                    </span>
-                    <p class="text-[10px] text-slate-500 mt-2">Kode QR kedaluwarsa dalam 5 menit</p>
-                </div>
+                <button onclick="closeQrModal()" class="w-8 h-8 rounded-lg glass-card border border-slate-700 flex items-center justify-center text-slate-400 hover:text-white min-h-0">
+                    <i class="fa-solid fa-xmark text-xs"></i>
+                </button>
             </div>
 
-            <!-- TAB CONTENT B: SCAN SESSION (Camera Capture) -->
-            <div id="qr-scan-section" class="hidden flex flex-col items-center justify-center space-y-4 py-2">
-                <p class="text-xs text-slate-400 text-center px-4 leading-relaxed">
-                    Berikan izin kamera untuk memindai kode QR dari layar komputer Anda.
+            <!-- Tabs -->
+            <div class="flex bg-slate-900 p-0.5 rounded-xl border border-slate-800 mb-5">
+                <button id="tab-qr-share" onclick="setQrMode('share')"
+                    class="flex-1 py-2 text-xs font-semibold rounded-lg bg-violet-600 text-white btn-press min-h-0">
+                    <i class="fa-solid fa-share-nodes mr-1.5"></i>Bagikan Akses
+                </button>
+                <button id="tab-qr-scan" onclick="setQrMode('scan')"
+                    class="flex-1 py-2 text-xs font-semibold rounded-lg text-slate-400 btn-press min-h-0">
+                    <i class="fa-solid fa-qrcode mr-1.5"></i>Scan QR
+                </button>
+            </div>
+
+            <!-- Share QR -->
+            <div id="qr-share-section" class="flex flex-col items-center space-y-4">
+                <p class="text-xs text-slate-400 text-center leading-relaxed">
+                    Scan kode ini dari perangkat lain untuk login instan tanpa mengetik.
                 </p>
-                <!-- Scanner Div -->
-                <div class="w-full aspect-square max-w-[280px] bg-slate-900 border border-slate-700 rounded-2xl overflow-hidden relative shadow-inner flex items-center justify-center">
-                    <div id="qr-reader" class="w-full h-full"></div>
-                    <div id="qr-scanner-placeholder" class="absolute inset-0 flex flex-col items-center justify-center space-y-2 pointer-events-none text-slate-600">
-                        <i class="fa-solid fa-camera-rotate text-3xl animate-pulse"></i>
-                        <span class="text-[10px]">Kamera sedang diinisialisasi...</span>
+                <div class="bg-white p-3 rounded-2xl shadow-lg border-2 border-slate-100">
+                    <div id="qrcode-container" class="w-44 h-44 flex items-center justify-center">
+                        <div class="shimmer w-full h-full rounded-lg"></div>
                     </div>
                 </div>
-                <div class="w-full text-center">
-                    <button id="btn-start-scanner" class="bg-slate-800 hover:bg-slate-700 active:bg-slate-900 border border-slate-700 text-slate-200 font-bold text-xs min-h-[44px] py-2 px-4 rounded-xl active:scale-95 transition-transform">
-                        <i class="fa-solid fa-play mr-1.5 text-brandTeal"></i>Mulai Kamera Scanner
-                    </button>
+                <div class="flex flex-col items-center gap-1">
+                    <span class="flex items-center gap-1.5 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full status-blink">
+                        <span class="w-1.5 h-1.5 bg-emerald-400 rounded-full"></span>Sesi Aktif
+                    </span>
+                    <p class="text-[10px] text-slate-600">Kedaluwarsa dalam 10 menit</p>
                 </div>
             </div>
 
+            <!-- Scan QR -->
+            <div id="qr-scan-section" class="hidden flex-col items-center space-y-4">
+                <p class="text-xs text-slate-400 text-center leading-relaxed">
+                    Izinkan kamera untuk memindai QR dari layar komputer yang sudah login.
+                </p>
+                <div class="w-full max-w-[240px] aspect-square bg-slate-900 border border-slate-700 rounded-2xl overflow-hidden relative">
+                    <div id="qr-reader" class="w-full h-full"></div>
+                    <div id="qr-scanner-placeholder" class="absolute inset-0 flex flex-col items-center justify-center gap-2 text-slate-600">
+                        <i class="fa-solid fa-camera-rotate text-3xl"></i>
+                        <span class="text-[10px]">Kamera belum aktif</span>
+                    </div>
+                </div>
+                <button id="btn-start-scanner" onclick="startQrCamera()"
+                    class="px-5 py-2.5 glass-card border border-slate-700 hover:border-violet-500/50 text-slate-200 font-semibold text-xs rounded-xl btn-press min-h-0">
+                    <i class="fa-solid fa-play mr-1.5 text-emerald-400"></i>Mulai Kamera Scanner
+                </button>
+            </div>
         </div>
     </div>
 
-    <!-- APP SCRIPT LINKING JS -->
+    <!-- ============================= MODAL 3: AI ANALYSIS ============================= -->
+    <div id="modal-ai-analysis" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-950/80">
+        <div class="w-full max-w-md glass rounded-3xl p-6 shadow-card border border-slate-700 max-h-[90vh] flex flex-col">
+            <div class="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-xl bg-violet-500/20 flex items-center justify-center">
+                        <i class="fa-solid fa-robot text-violet-400 text-sm"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-200">Analisis Usaha AI</h3>
+                        <p class="text-[10px] text-slate-500">Powered by Gemini 1.5 Flash</p>
+                    </div>
+                </div>
+                <button onclick="closeAiAnalysisModal()" class="w-8 h-8 rounded-lg glass-card border border-slate-700 flex items-center justify-center text-slate-400 hover:text-white min-h-0">
+                    <i class="fa-solid fa-xmark text-xs"></i>
+                </button>
+            </div>
+
+            <!-- Loading State -->
+            <div id="ai-analysis-loading" class="hidden flex-col items-center justify-center py-10 gap-4">
+                <div class="w-16 h-16 rounded-2xl bg-violet-500/20 border border-violet-500/30 flex items-center justify-center">
+                    <i class="fa-solid fa-robot text-violet-400 text-xl fa-spin"></i>
+                </div>
+                <div class="text-center">
+                    <p class="text-sm font-bold text-violet-300">AI sedang menganalisis...</p>
+                    <p class="text-xs text-slate-500 mt-1">Membaca pola keuangan usahamu</p>
+                </div>
+            </div>
+
+            <!-- Empty / Prompt -->
+            <div id="ai-analysis-prompt" class="flex flex-col items-center justify-center py-6 gap-4">
+                <div class="w-16 h-16 rounded-2xl ai-card-bg flex items-center justify-center">
+                    <i class="fa-solid fa-chart-bar text-violet-400 text-2xl"></i>
+                </div>
+                <div class="text-center">
+                    <p class="text-sm font-bold text-slate-200">Analisis Keuangan Usaha</p>
+                    <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+                        AI akan membaca 10 transaksi terakhir dan memberikan <strong class="text-violet-300">3 insight bisnis</strong> yang berguna.
+                    </p>
+                </div>
+                <button onclick="runAiAnalysis()"
+                    class="px-6 py-3 bg-gradient-to-r from-violet-600 to-violet-500 text-white font-bold text-sm rounded-xl shadow-violet btn-press">
+                    <i class="fa-solid fa-wand-magic-sparkles mr-2"></i>Mulai Analisis Sekarang
+                </button>
+            </div>
+
+            <!-- Results -->
+            <div id="ai-analysis-results" class="hidden flex-1 overflow-y-auto space-y-3">
+                <div id="ai-insights-container" class="space-y-3"></div>
+                <button onclick="runAiAnalysis()"
+                    class="w-full py-2.5 glass-card border border-slate-700 hover:border-violet-500/50 text-violet-300 font-semibold text-xs rounded-xl btn-press mt-2 min-h-0">
+                    <i class="fa-solid fa-rotate-right mr-1.5"></i>Analisis Ulang
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script src="app.js"></script>
 </body>
 </html>

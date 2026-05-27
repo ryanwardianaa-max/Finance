@@ -1,279 +1,182 @@
 /**
- * Aura Finance - Logic and Integration Script (Supabase Migration)
- * 
- * PETUNJUK PEMASANGAN & PENGATURAN API (INDONESIAN INSTRUCTIONS):
- * 1. Di bagian bawah baris komentar ini, isi nilai variabel:
- *    - `DEFAULT_SUPABASE_URL`: Dapatkan dari Supabase Console -> Project Settings -> API -> Project URL.
- *    - `DEFAULT_SUPABASE_ANON_KEY`: Dapatkan dari Supabase Console -> Project Settings -> API -> anon public key.
- *    - `DEFAULT_GEMINI_API_KEY`: Dapatkan dari Google AI Studio (https://aistudio.google.com/).
- * 
- * CATATAN KEAMANAN GITHUB & VERCEL:
- * - Jangan membagikan API Key Anda di repositori Git publik.
- * - Cara paling aman adalah mengosongkan variabel default di bawah dan memasukkan kredensialnya 
- *   secara langsung lewat menu "Pengaturan API & Kredensial" di dashboard Web UI Aura Finance.
- *   Nilai tersebut akan tersimpan aman di browser LocalStorage Anda secara mandiri.
+ * Saku Librayn - Application Logic
+ * Pembukuan Suara Cerdas untuk UMKM
+ *
+ * Stack: Supabase Auth + PostgreSQL, Google Gemini 1.5 Flash, Web Speech API
+ * Author: ryanwardiana | © 2026 Saku Librayn
+ *
+ * =========================================================
+ * CARA PENGATURAN API (BACA INI SEBELUM MULAI):
+ * =========================================================
+ * 1. SUPABASE URL & ANON KEY:
+ *    - Buka supabase.com → Pilih project Anda
+ *    - Klik Settings (roda gigi) → API
+ *    - Salin "Project URL" dan "anon public" key
+ *    - Tempel ke kolom di Dashboard → Pengaturan API
+ *
+ * 2. GEMINI API KEY (untuk Voice & OCR):
+ *    - Buka aistudio.google.com
+ *    - Login Google → Klik "Get API Key" → "Create API Key"
+ *    - Salin key yang diawali "AIza..."
+ *    - Tempel ke kolom Gemini API Key di Dashboard → Pengaturan API
+ *    - Klik "Simpan Konfigurasi"
+ *    - Selesai! Voice Note dan OCR sudah aktif.
+ * =========================================================
  */
 
-const DEFAULT_SUPABASE_URL = "https://wdilryxahcylzosahdof.supabase.co"; // Masukkan Supabase Project URL Anda
-const DEFAULT_SUPABASE_ANON_KEY = "sb_publishable_wK3CwI-qTtJoY8ilQOw2xg_RL89GQcK"; // Masukkan Supabase Anon Key Anda
-const DEFAULT_GEMINI_API_KEY = ""; // Masukkan API Key Gemini default Anda
+// =============================================
+// DEFAULT CREDENTIALS (OVERRIDE VIA UI SETTINGS)
+// =============================================
+const DEFAULT_SUPABASE_URL = "https://wdilryxahcylzosahdof.supabase.co";
+const DEFAULT_SUPABASE_ANON_KEY = "sb_publishable_wK3CwI-qTtJoY8ilQOw2xg_RL89GQcK";
+const DEFAULT_GEMINI_API_KEY = "";
 
-// Instans Supabase Client (Diubah ke supabaseClient untuk menghindari tabrakan nama dengan library global window.supabase)
+// =============================================
+// APPLICATION STATE
+// =============================================
 let supabaseClient = null;
-
-// State Manajemen Aplikasi
 let currentUser = null;
 let transactions = [];
-let activeInputType = 'expense'; // 'expense' atau 'income'
+let activeInputType = 'expense';
 let calcExpression = '';
-let currentTxFilter = 'all'; // 'all' | 'income' | 'expense'
-let currentMobileTab = 'dashboard'; // 'dashboard' | 'transactions'
-let currentQrMode = 'share'; // 'share' atau 'scan'
-let qrScannerInstance = null;
-let loginSyncChannel = null;
-let loginQrScannerInstance = null;
-let currentLoginMode = 'form'; // 'form' atau 'qr'
-let currentLoginQrSubMode = 'show'; // 'show' atau 'scan'
-
-// Instans Chart.js untuk dihancurkan sebelum digambar ulang
+let currentTxFilter = 'all';
+let currentMobileTab = 'dashboard';
 let cashflowChartInstance = null;
 let categoryChartInstance = null;
+let speechRecognitionInstance = null;
+let qrScannerInstance = null;
+let loginQrScannerInstance = null;
+let loginSyncChannel = null;
+let shareSyncChannel = null;
+let currentLoginMode = 'form';
+let currentLoginQrSubMode = 'show';
+let currentQrMode = 'share';
 
-// Inisialisasi Aplikasi Saat Window Dimuat
-window.onload = function() {
+// =============================================
+// INIT
+// =============================================
+window.onload = function () {
     initApp();
 };
 
 function initApp() {
-    // Inisialisasi Tema (Default ke Dark Mode)
-    const savedTheme = localStorage.getItem('theme') || 'dark';
-    if (savedTheme === 'dark') {
-        document.documentElement.classList.add('dark');
-    } else {
+    // Apply saved theme
+    const savedTheme = localStorage.getItem('sk_theme') || 'dark';
+    if (savedTheme === 'light') {
         document.documentElement.classList.remove('dark');
+    } else {
+        document.documentElement.classList.add('dark');
     }
 
-    // Muat kredensial dari LocalStorage atau fallback default
-    const savedSupaUrl = localStorage.getItem('supabase_url') || DEFAULT_SUPABASE_URL;
-    const savedSupaKey = localStorage.getItem('supabase_anon_key') || DEFAULT_SUPABASE_ANON_KEY;
-    const savedGeminiKey = localStorage.getItem('gemini_api_key') || DEFAULT_GEMINI_API_KEY;
-    
-    document.getElementById('input-supabase-url').value = savedSupaUrl;
-    document.getElementById('input-supabase-key').value = savedSupaKey;
-    document.getElementById('input-gemini-key').value = savedGeminiKey;
+    // Load saved credentials
+    const supaUrl = localStorage.getItem('sk_supabase_url') || DEFAULT_SUPABASE_URL;
+    const supaKey = localStorage.getItem('sk_supabase_key') || DEFAULT_SUPABASE_ANON_KEY;
+    const geminiKey = localStorage.getItem('sk_gemini_key') || DEFAULT_GEMINI_API_KEY;
 
-    // Inisialisasi Supabase Client jika kredensial terisi
-    if (savedSupaUrl && savedSupaKey) {
+    const elUrl = document.getElementById('input-supabase-url');
+    const elKey = document.getElementById('input-supabase-key');
+    const elGem = document.getElementById('input-gemini-key');
+    if (elUrl) elUrl.value = supaUrl;
+    if (elKey) elKey.value = supaKey;
+    if (elGem) elGem.value = geminiKey;
+
+    // Init Supabase
+    if (supaUrl && supaKey) {
         try {
-            // Menggunakan objek global window.supabase dari CDN
-            supabaseClient = window.supabase.createClient(savedSupaUrl, savedSupaKey);
-        } catch (err) {
-            console.error("Gagal memuat client Supabase:", err);
+            supabaseClient = window.supabase.createClient(supaUrl, supaKey);
+        } catch (e) {
+            console.error("Supabase init error:", e);
         }
     }
 
-    // Dengarkan status Auth dari Supabase
+    // Auth listener
     if (supabaseClient) {
         supabaseClient.auth.onAuthStateChange((event, session) => {
-            const isDemo = localStorage.getItem('is_demo_mode') === 'true';
-            
-            if (session && session.user && !isDemo) {
-                currentUser = {
-                    id: session.user.id,
-                    email: session.user.email,
-                    name: session.user.user_metadata.full_name || session.user.email,
-                    picture: session.user.user_metadata.avatar_url || 'https://via.placeholder.com/150'
-                };
-                localStorage.setItem('user_session', JSON.stringify(currentUser));
+            if (session && session.user && localStorage.getItem('sk_demo') !== 'true') {
+                setCurrentUserFromSession(session.user);
                 showDashboard();
-            } else if (!session && !isDemo) {
-                // Sesi habis / logout
+            } else if (!session && localStorage.getItem('sk_demo') !== 'true') {
                 currentUser = null;
-                localStorage.removeItem('user_session');
-                document.getElementById('login-screen').classList.remove('hidden');
-                document.getElementById('dashboard-screen').classList.add('hidden');
+                localStorage.removeItem('sk_user');
+                showLoginScreen();
             }
         });
     }
 
-    // Periksa status login sesi sebelumnya
-    const savedUser = localStorage.getItem('user_session');
+    // Check persisted session
+    const savedUser = localStorage.getItem('sk_user');
     if (savedUser) {
-        currentUser = JSON.parse(savedUser);
-        showDashboard();
+        try {
+            currentUser = JSON.parse(savedUser);
+            showDashboard();
+        } catch (e) {
+            showLoginScreen();
+        }
     } else {
-        // Tampilkan layar login jika tidak ada sesi tersimpan
-        document.getElementById('login-screen').classList.remove('hidden');
-        document.getElementById('dashboard-screen').classList.add('hidden');
+        showLoginScreen();
     }
 
-    // Hubungkan Event Listener komponen UI
     setupEventListeners();
 }
 
-// Menghubungkan kontrol tombol dengan fungsinya
+function setCurrentUserFromSession(user) {
+    currentUser = {
+        id: user.id,
+        email: user.email,
+        name: user.user_metadata?.full_name || user.email,
+        picture: user.user_metadata?.avatar_url || null
+    };
+    localStorage.setItem('sk_user', JSON.stringify(currentUser));
+    localStorage.setItem('sk_demo', 'false');
+}
+
 function setupEventListeners() {
-    // Form Auth Toggles
-    document.getElementById('link-show-register').addEventListener('click', function(e) {
-        e.preventDefault();
-        showAuthForm('register');
-    });
-    document.getElementById('link-show-login').addEventListener('click', function(e) {
-        e.preventDefault();
-        showAuthForm('login');
-    });
+    safeListener('form-login', 'submit', loginWithEmail);
+    safeListener('form-register', 'submit', registerWithEmail);
+    safeListener('link-show-register', 'click', (e) => { e.preventDefault(); showAuthForm('register'); });
+    safeListener('link-show-login', 'click', (e) => { e.preventDefault(); showAuthForm('login'); });
+    safeListener('btn-demo-mode', 'click', loginAsDemo);
 
-    // Form Submits
-    document.getElementById('form-login').addEventListener('submit', loginWithEmail);
-    document.getElementById('form-register').addEventListener('submit', registerWithEmail);
+    // Amount input - format with dots
+    const amtInput = document.getElementById('input-amount');
+    if (amtInput) {
+        amtInput.addEventListener('input', function (e) {
+            const rawVal = e.target.value.replace(/\./g, '');
+            calcExpression = rawVal;
+            e.target.value = formatDisplayNumber(rawVal);
+        });
+        amtInput.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') { e.preventDefault(); pressCalc('='); }
+        });
+    }
 
-    // Mode Demo
-    document.getElementById('btn-demo-mode').addEventListener('click', loginAsDemo);
-
-    // Logout (Desktop & Mobile)
-    document.getElementById('btn-logout').addEventListener('click', logout);
-    const mobLogout = document.getElementById('btn-mobile-logout');
-    if (mobLogout) mobLogout.addEventListener('click', logout);
-
-    // Simpan Pengaturan API
-    document.getElementById('btn-save-settings').addEventListener('click', saveApiSettings);
-
-    // Modal Input Transaksi
-    const openBtn = document.getElementById('btn-open-input-modal');
-    if (openBtn) openBtn.addEventListener('click', openInputModal);
-    document.getElementById('btn-close-input-modal').addEventListener('click', closeInputModal);
-    document.getElementById('btn-cancel-tx').addEventListener('click', closeInputModal);
-    document.getElementById('btn-submit-tx').addEventListener('click', submitTransaction);
-
-    // Tombol Toggle Kalkulator
-    document.getElementById('btn-toggle-calc').addEventListener('click', function(e) {
-        e.preventDefault();
-        const calcPanel = document.getElementById('calculator-keypad');
-        calcPanel.classList.toggle('hidden');
-    });
-
-    // Perekam Suara & OCR Struk
-    document.getElementById('btn-voice-input').addEventListener('click', startVoiceRecording);
-    document.getElementById('ocr-image-upload').addEventListener('change', handleReceiptOCR);
-    document.getElementById('btn-remove-ocr-img').addEventListener('click', clearOCRPreview);
-
-    // Modal Sync QR
-    document.getElementById('btn-qr-sync').addEventListener('click', openQrModal);
-    document.getElementById('btn-close-qr-modal').addEventListener('click', closeQrModal);
-    document.getElementById('btn-start-scanner').addEventListener('click', startQrCamera);
-
-    // Pencarian Transaksi
-    document.getElementById('search-tx').addEventListener('input', function(e) {
-        renderTransactionsList(e.target.value);
-    });
-
-    // Filter Grafik
-    document.getElementById('chart-filter').addEventListener('change', function() {
-        renderCharts();
-    });
-
-    // Toggle Tema (Desktop & Mobile)
-    const btnTheme = document.getElementById('btn-theme-toggle');
-    const btnMobTheme = document.getElementById('btn-mobile-theme-toggle');
-    if (btnTheme) btnTheme.addEventListener('click', toggleTheme);
-    if (btnMobTheme) btnMobTheme.addEventListener('click', toggleTheme);
-
-    // Input nominal keyboard listener
-    const inputAmt = document.getElementById('input-amount');
-    inputAmt.addEventListener('input', function(e) {
-        // Hilangkan titik terlebih dahulu untuk menyimpan nilai asli
-        const rawVal = e.target.value.replace(/\./g, '');
-        calcExpression = rawVal;
-        // Format kembali tampilan dengan titik
-        e.target.value = formatExpressionDisplay(rawVal);
-    });
-    inputAmt.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            pressCalc('=');
-        }
-    });
-
-    // Menangani perubahan ukuran layar (Resize Event)
-    window.addEventListener('resize', function() {
+    // Resize handler
+    window.addEventListener('resize', () => {
         if (window.innerWidth >= 768) {
-            document.getElementById('section-dashboard').classList.remove('hidden');
-            document.getElementById('section-transactions').classList.remove('hidden');
+            document.getElementById('section-dashboard')?.classList.remove('hidden');
+            document.getElementById('section-transactions')?.classList.remove('hidden');
         } else {
             switchMobileTab(currentMobileTab);
         }
     });
 }
 
-// Toggle drawer pengaturan API
-function toggleApiSettings() {
-    const panel = document.getElementById('api-settings-panel');
-    const chevron = document.getElementById('api-settings-chevron');
-    
-    panel.classList.toggle('hidden');
-    chevron.classList.toggle('rotate-180');
+function safeListener(id, event, handler) {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener(event, handler);
 }
 
-// Simpan Kredensial Konfigurasi secara Lokal
-function saveApiSettings() {
-    const supaUrl = document.getElementById('input-supabase-url').value.trim();
-    const supaKey = document.getElementById('input-supabase-key').value.trim();
-    const geminiKey = document.getElementById('input-gemini-key').value.trim();
-
-    localStorage.setItem('supabase_url', supaUrl);
-    localStorage.setItem('supabase_anon_key', supaKey);
-    localStorage.setItem('gemini_api_key', geminiKey);
-
-    showToast("Kredensial Supabase & Gemini berhasil disimpan!", "success");
-    toggleApiSettings();
-    
-    // Inisialisasi ulang Supabase Client
-    if (supaUrl && supaKey) {
-        try {
-            supabaseClient = window.supabase.createClient(supaUrl, supaKey);
-        } catch (err) {
-            console.error("Gagal memuat client Supabase:", err);
-        }
-    }
-
-    // Refresh data jika sedang login
-    if (currentUser) {
-        loadData();
-    }
+// =============================================
+// AUTH
+// =============================================
+function showLoginScreen() {
+    document.getElementById('login-screen').classList.remove('hidden');
+    document.getElementById('dashboard-screen').classList.add('hidden');
 }
 
-// Toggle Theme (Light vs Dark Mode)
-function toggleTheme() {
-    if (document.documentElement.classList.contains('dark')) {
-        document.documentElement.classList.remove('dark');
-        localStorage.setItem('theme', 'light');
-    } else {
-        document.documentElement.classList.add('dark');
-        localStorage.setItem('theme', 'dark');
-    }
-}
-
-// Format math expressions with dots for thousands display (e.g. 100.000 + 5.000)
-function formatExpressionDisplay(expr) {
-    if (!expr) return '0';
-    return expr.toString().replace(/\d+/g, (match) => {
-        return match.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-    });
-}
-
-// Format a raw number with dots for thousands
-function formatNumberWithDots(num) {
-    if (!num && num !== 0) return '';
-    const parts = num.toString().split('.');
-    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-    return parts.join(',');
-}
-
-// Toggle login & register forms
 function showAuthForm(mode) {
     const loginForm = document.getElementById('form-login');
     const registerForm = document.getElementById('form-register');
-    
     if (mode === 'register') {
         loginForm.classList.add('hidden');
         registerForm.classList.remove('hidden');
@@ -283,50 +186,38 @@ function showAuthForm(mode) {
     }
 }
 
-// Login using email and password
 async function loginWithEmail(e) {
     if (e) e.preventDefault();
     if (!supabaseClient) {
-        showToast("Supabase belum dikonfigurasi! Harap lengkapi URL dan Anon Key terlebih dahulu.", "error");
+        showToast("Supabase belum dikonfigurasi!", "error");
         toggleApiSettings();
         return;
     }
 
     const email = document.getElementById('login-email').value.trim();
     const password = document.getElementById('login-password').value;
-
-    localStorage.setItem('is_demo_mode', 'false');
+    const btn = e.target.querySelector('button[type=submit]');
+    setButtonLoading(btn, true, 'Masuk Sekarang');
 
     try {
-        const { data, error } = await supabaseClient.auth.signInWithPassword({
-            email: email,
-            password: password
-        });
-
+        const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
         if (error) throw error;
-
-        if (data && data.user) {
-            currentUser = {
-                id: data.user.id,
-                email: data.user.email,
-                name: data.user.user_metadata.full_name || data.user.email,
-                picture: data.user.user_metadata.avatar_url || 'https://via.placeholder.com/150'
-            };
-            localStorage.setItem('user_session', JSON.stringify(currentUser));
-            showToast("Masuk berhasil!", "success");
+        if (data?.user) {
+            setCurrentUserFromSession(data.user);
+            showToast("Masuk berhasil! Selamat datang 🎉", "success");
             showDashboard();
         }
-    } catch (e) {
-        console.error("Kesalahan Login Email:", e.message);
-        showToast(`Masuk Gagal: ${e.message}`, "error");
+    } catch (err) {
+        showToast(`Masuk gagal: ${err.message}`, "error");
+    } finally {
+        setButtonLoading(btn, false, '<i class="fa-solid fa-arrow-right-to-bracket mr-2"></i>Masuk Sekarang');
     }
 }
 
-// Register new account with email and password
 async function registerWithEmail(e) {
     if (e) e.preventDefault();
     if (!supabaseClient) {
-        showToast("Supabase belum dikonfigurasi! Harap lengkapi URL dan Anon Key terlebih dahulu.", "error");
+        showToast("Supabase belum dikonfigurasi!", "error");
         toggleApiSettings();
         return;
     }
@@ -336,459 +227,486 @@ async function registerWithEmail(e) {
     const password = document.getElementById('register-password').value;
 
     if (password.length < 6) {
-        showToast("Password minimal harus 6 karakter!", "warning");
+        showToast("Password minimal 6 karakter!", "warning");
         return;
     }
 
-    localStorage.setItem('is_demo_mode', 'false');
+    const btn = e.target.querySelector('button[type=submit]');
+    setButtonLoading(btn, true, 'Buat Akun Baru');
 
     try {
         const { data, error } = await supabaseClient.auth.signUp({
-            email: email,
-            password: password,
-            options: {
-                data: {
-                    full_name: name
-                }
-            }
+            email,
+            password,
+            options: { data: { full_name: name } }
         });
-
         if (error) throw error;
 
-        if (data && data.user) {
-            if (data.session) {
-                currentUser = {
-                    id: data.user.id,
-                    email: data.user.email,
-                    name: data.user.user_metadata.full_name || data.user.email,
-                    picture: data.user.user_metadata.avatar_url || 'https://via.placeholder.com/150'
-                };
-                localStorage.setItem('user_session', JSON.stringify(currentUser));
-                showToast("Pendaftaran berhasil dan otomatis masuk!", "success");
-                showDashboard();
-            } else {
-                showToast("Pendaftaran berhasil! Silakan periksa email untuk verifikasi (atau langsung coba masuk jika tidak perlu verifikasi).", "info");
-                showAuthForm('login');
-            }
+        if (data?.session) {
+            setCurrentUserFromSession(data.user);
+            showToast("Akun berhasil dibuat! Selamat datang 🎉", "success");
+            showDashboard();
+        } else {
+            showToast("Akun dibuat! Cek email untuk verifikasi, lalu masuk.", "info");
+            showAuthForm('login');
         }
-    } catch (e) {
-        console.error("Kesalahan Pendaftaran:", e.message);
-        showToast(`Pendaftaran Gagal: ${e.message}`, "error");
-    }
-}
-
-// Authentication Handlers menggunakan Supabase OAuth
-async function loginWithGoogle() {
-    if (!supabaseClient) {
-        showToast("Supabase belum dikonfigurasi! Harap lengkapi URL dan Anon Key terlebih dahulu.", "error");
-        toggleApiSettings();
-        return;
-    }
-    
-    localStorage.setItem('is_demo_mode', 'false');
-    
-    try {
-        const { error } = await supabaseClient.auth.signInWithOAuth({
-            provider: 'google',
-            options: {
-                redirectTo: window.location.origin + window.location.pathname
-            }
-        });
-        if (error) throw error;
-    } catch (e) {
-        console.error("Kesalahan Login Google OAuth:", e.message);
-        showToast(`Masuk Gagal: ${e.message}`, "error");
+    } catch (err) {
+        showToast(`Daftar gagal: ${err.message}`, "error");
+    } finally {
+        setButtonLoading(btn, false, '<i class="fa-solid fa-user-plus mr-2"></i>Buat Akun Baru');
     }
 }
 
 function loginAsDemo() {
     currentUser = {
-        id: "demo-user-uuid-12345",
-        email: "demo.user@librayn.local",
-        name: "Demo User (Uji Coba)",
-        picture: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200"
+        id: "demo-user-saku-librayn",
+        email: "demo@sakulibrayn.local",
+        name: "Demo UMKM",
+        picture: null
     };
-    
-    localStorage.setItem('is_demo_mode', 'true');
-    localStorage.setItem('user_session', JSON.stringify(currentUser));
-    showToast("Masuk sebagai Pengguna Demo. Data disimpan di memori lokal.", "info");
+    localStorage.setItem('sk_demo', 'true');
+    localStorage.setItem('sk_user', JSON.stringify(currentUser));
+    showToast("Mode Demo aktif. Data tersimpan secara lokal.", "info");
     showDashboard();
 }
 
 async function logout() {
-    const isDemo = localStorage.getItem('is_demo_mode') === 'true';
-    
-    localStorage.removeItem('user_session');
-    localStorage.removeItem('is_demo_mode');
+    const isDemo = localStorage.getItem('sk_demo') === 'true';
+    localStorage.removeItem('sk_user');
+    localStorage.removeItem('sk_demo');
     currentUser = null;
     transactions = [];
-    
+
     if (supabaseClient && !isDemo) {
-        try {
-            await supabaseClient.auth.signOut();
-        } catch (e) {
-            console.error("Supabase signout error:", e);
-        }
+        try { await supabaseClient.auth.signOut(); } catch (e) {}
     }
-    
-    // Tampilkan login screen kembali
-    document.getElementById('login-screen').classList.remove('hidden');
-    document.getElementById('dashboard-screen').classList.add('hidden');
-    showToast("Berhasil keluar dari sesi aplikasi.", "info");
+
+    // Clean up QR channels
+    if (loginSyncChannel) { loginSyncChannel.unsubscribe(); loginSyncChannel = null; }
+    if (shareSyncChannel) { shareSyncChannel.unsubscribe(); shareSyncChannel = null; }
+
+    showLoginScreen();
+    showToast("Berhasil keluar.", "info");
 }
 
-// Tampilkan Dashboard & Tarik Data
+// Login Mode: form | qr
+function setLoginMode(mode) {
+    currentLoginMode = mode;
+    const formTab = document.getElementById('tab-login-form');
+    const qrTab = document.getElementById('tab-login-qr');
+    const formSection = document.getElementById('login-form-section');
+    const qrSection = document.getElementById('login-qr-section');
+
+    const activeClass = 'flex-1 py-2 text-xs font-semibold rounded-lg bg-violet-600 text-white shadow-violet btn-press';
+    const inactiveClass = 'flex-1 py-2 text-xs font-semibold rounded-lg text-slate-400 btn-press';
+
+    if (mode === 'form') {
+        formTab.className = activeClass;
+        qrTab.className = inactiveClass;
+        formSection.classList.remove('hidden');
+        qrSection.classList.add('hidden');
+        stopLoginQrScanner();
+        if (loginSyncChannel) { loginSyncChannel.unsubscribe(); loginSyncChannel = null; }
+    } else {
+        qrTab.className = activeClass;
+        formTab.className = inactiveClass;
+        qrSection.classList.remove('hidden');
+        formSection.classList.add('hidden');
+        setLoginQrSubMode('show');
+    }
+}
+
+function setLoginQrSubMode(submode) {
+    currentLoginQrSubMode = submode;
+    const btnShow = document.getElementById('btn-login-qr-show');
+    const btnScan = document.getElementById('btn-login-qr-scan');
+    const showPanel = document.getElementById('login-qr-show-panel');
+    const scanPanel = document.getElementById('login-qr-scan-panel');
+
+    const activeClass = 'flex-1 py-1.5 text-[10px] font-semibold rounded-lg bg-violet-600 text-white btn-press';
+    const inactiveClass = 'flex-1 py-1.5 text-[10px] font-semibold rounded-lg text-slate-400 btn-press';
+
+    if (submode === 'show') {
+        btnShow.className = activeClass;
+        btnScan.className = inactiveClass;
+        showPanel.classList.remove('hidden');
+        scanPanel.classList.add('hidden');
+        stopLoginQrScanner();
+        initLoginQrCode();
+    } else {
+        btnScan.className = activeClass;
+        btnShow.className = inactiveClass;
+        scanPanel.classList.remove('hidden');
+        scanPanel.classList.remove('hidden');
+        scanPanel.style.display = 'flex';
+        showPanel.classList.add('hidden');
+        if (loginSyncChannel) { loginSyncChannel.unsubscribe(); loginSyncChannel = null; }
+    }
+}
+
+/** Display a simple QR on login screen that HP (already logged in) can scan to push session here */
+function initLoginQrCode() {
+    if (!supabaseClient) {
+        const url = localStorage.getItem('sk_supabase_url') || DEFAULT_SUPABASE_URL;
+        const key = localStorage.getItem('sk_supabase_key') || DEFAULT_SUPABASE_ANON_KEY;
+        if (url && key) {
+            try { supabaseClient = window.supabase.createClient(url, key); } catch (e) {}
+        }
+    }
+
+    const container = document.getElementById('login-qrcode-container');
+    if (!container) return;
+    container.innerHTML = '';
+
+    // Short token only — keeps QR code sparse/easy to scan
+    const token = 'sk_' + generateShortToken();
+
+    new QRCode(container, {
+        text: 'sync_login:' + token,
+        width: 144,
+        height: 144,
+        colorDark: '#1e1b4b',
+        colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.M  // Medium error correction = simpler/sparser pattern
+    });
+
+    // Listen on Supabase Realtime for session push from HP
+    if (loginSyncChannel) { loginSyncChannel.unsubscribe(); }
+
+    if (!supabaseClient) return;
+
+    loginSyncChannel = supabaseClient.channel('sk-login-' + token);
+    loginSyncChannel.on('broadcast', { event: 'push-session' }, ({ payload }) => {
+        if (!payload) return;
+        applyIncomingSession(payload);
+    }).subscribe();
+}
+
+function startLoginQrScanner() {
+    const placeholder = document.getElementById('login-qr-scanner-placeholder');
+    if (placeholder) placeholder.classList.add('hidden');
+
+    if (loginQrScannerInstance) {
+        try { loginQrScannerInstance.clear(); } catch (e) {}
+        loginQrScannerInstance = null;
+    }
+
+    loginQrScannerInstance = new Html5Qrcode('login-qr-reader');
+    loginQrScannerInstance.start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: { width: 160, height: 160 } },
+        onQrScanSuccess,
+        () => {}
+    ).catch(err => {
+        showToast("Akses kamera ditolak atau tidak tersedia.", "error");
+        if (placeholder) placeholder.classList.remove('hidden');
+    });
+}
+
+function stopLoginQrScanner() {
+    if (loginQrScannerInstance) {
+        try { loginQrScannerInstance.clear(); } catch (e) {}
+        loginQrScannerInstance = null;
+    }
+    const placeholder = document.getElementById('login-qr-scanner-placeholder');
+    if (placeholder) placeholder.classList.remove('hidden');
+}
+
+// =============================================
+// DASHBOARD
+// =============================================
 function showDashboard() {
     document.getElementById('login-screen').classList.add('hidden');
     document.getElementById('dashboard-screen').classList.remove('hidden');
 
-    // Perbarui Profile Widget (Desktop & Mobile)
-    const profilePic = currentUser.picture;
-    const initial = (currentUser.name || currentUser.email || 'U').charAt(0).toUpperCase();
+    updateUserProfileUI();
+    document.getElementById('input-date').value = todayString();
 
-    const desktopImg = document.getElementById('user-avatar');
-    const desktopInitial = document.getElementById('user-avatar-initial');
-    document.getElementById('user-name').innerText = currentUser.name;
-
-    if (profilePic && profilePic !== 'https://via.placeholder.com/150') {
-        desktopImg.src = profilePic;
-        desktopImg.classList.remove('hidden');
-        if (desktopInitial) desktopInitial.classList.add('hidden');
-    } else {
-        desktopImg.classList.add('hidden');
-        if (desktopInitial) {
-            desktopInitial.innerText = initial;
-            desktopInitial.classList.remove('hidden');
-        }
-    }
-
-    const mobImg = document.getElementById('mobile-user-avatar');
-    const mobInitial = document.getElementById('mobile-user-avatar-initial');
-    const mobName = document.getElementById('mobile-user-name');
-    if (mobName) mobName.innerText = currentUser.name;
-
-    if (profilePic && profilePic !== 'https://via.placeholder.com/150') {
-        if (mobImg) {
-            mobImg.src = profilePic;
-            mobImg.classList.remove('hidden');
-        }
-        if (mobInitial) mobInitial.classList.add('hidden');
-    } else {
-        if (mobImg) mobImg.classList.add('hidden');
-        if (mobInitial) {
-            mobInitial.innerText = initial;
-            mobInitial.classList.remove('hidden');
-        }
-    }
-
-    // Reset Form Input Tanggal ke Tanggal Hari Ini
-    document.getElementById('input-date').value = new Date().toISOString().substring(0, 10);
-
-    // Inisialisasi tampilan tab aktif pada mobile
     if (window.innerWidth < 768) {
         switchMobileTab(currentMobileTab);
     } else {
-        document.getElementById('section-dashboard').classList.remove('hidden');
-        document.getElementById('section-transactions').classList.remove('hidden');
+        document.getElementById('section-dashboard')?.classList.remove('hidden');
+        document.getElementById('section-transactions')?.classList.remove('hidden');
     }
 
-    // Ambil Data Transaksi
     loadData();
 }
 
-// Mengambil data transaksi dari Supabase (atau LocalStorage jika Demo)
+function updateUserProfileUI() {
+    if (!currentUser) return;
+
+    const initial = (currentUser.name || currentUser.email || 'U').charAt(0).toUpperCase();
+    const hasAvatar = currentUser.picture && !currentUser.picture.includes('placeholder');
+
+    // Desktop
+    const desktopAvatar = document.getElementById('user-avatar');
+    const desktopInitial = document.getElementById('user-avatar-initial');
+    const desktopName = document.getElementById('user-name');
+    if (desktopName) desktopName.textContent = currentUser.name;
+    if (hasAvatar && desktopAvatar) {
+        desktopAvatar.src = currentUser.picture;
+        desktopAvatar.classList.remove('hidden');
+        if (desktopInitial) desktopInitial.classList.add('hidden');
+    } else {
+        if (desktopAvatar) desktopAvatar.classList.add('hidden');
+        if (desktopInitial) { desktopInitial.textContent = initial; desktopInitial.classList.remove('hidden'); }
+    }
+
+    // Mobile
+    const mobAvatar = document.getElementById('mobile-user-avatar');
+    const mobInitial = document.getElementById('mobile-user-avatar-initial');
+    const mobName = document.getElementById('mobile-user-name');
+    if (mobName) mobName.textContent = currentUser.name;
+    if (hasAvatar && mobAvatar) {
+        mobAvatar.src = currentUser.picture;
+        mobAvatar.classList.remove('hidden');
+        if (mobInitial) mobInitial.classList.add('hidden');
+    } else {
+        if (mobAvatar) mobAvatar.classList.add('hidden');
+        if (mobInitial) { mobInitial.textContent = initial; mobInitial.classList.remove('hidden'); }
+    }
+}
+
+// =============================================
+// DATA
+// =============================================
 async function loadData() {
-    const loadingState = document.getElementById('tx-loading-state');
-    const emptyState = document.getElementById('tx-empty-state');
-    const listContainer = document.getElementById('tx-list-container');
+    const loading = document.getElementById('tx-loading-state');
+    const empty = document.getElementById('tx-empty-state');
+    const list = document.getElementById('tx-list-container');
+    if (loading) loading.classList.remove('hidden');
+    if (empty) empty.classList.add('hidden');
+    if (list) list.classList.add('hidden');
 
-    loadingState.classList.remove('hidden');
-    emptyState.classList.add('hidden');
-    listContainer.classList.add('hidden');
-
-    const isDemo = localStorage.getItem('is_demo_mode') === 'true';
+    const isDemo = localStorage.getItem('sk_demo') === 'true';
 
     if (!supabaseClient || isDemo) {
-        // Mode Demo Offline
         loadLocalTransactions();
-        loadingState.classList.add('hidden');
+        if (loading) loading.classList.add('hidden');
         return;
     }
 
     try {
-        // Query PostgreSQL di Supabase. RLS akan membatasi baris secara otomatis
-        // agar hanya mengembalikan data milik auth.uid() == user_id.
         const { data, error } = await supabaseClient
             .from('transactions')
             .select('*')
             .order('date', { ascending: false });
-            
         if (error) throw error;
-        
         transactions = data || [];
-        localStorage.setItem(`tx_cache_${currentUser.email}`, JSON.stringify(transactions));
+        cacheTransactions();
         updateDashboardMetrics();
-    } catch (e) {
-        console.error("Gagal memuat data dari Supabase Database:", e);
-        showToast("Koneksi gagal. Menggunakan data cache offline.", "warning");
+    } catch (err) {
+        console.error("Supabase load error:", err);
+        showToast("Koneksi gagal, menggunakan data cache.", "warning");
         loadLocalTransactions();
     } finally {
-        loadingState.classList.add('hidden');
+        if (loading) loading.classList.add('hidden');
     }
 }
 
 function loadLocalTransactions() {
-    const cached = localStorage.getItem(`tx_cache_${currentUser.email}`);
+    const cached = localStorage.getItem(`sk_tx_${currentUser?.email}`);
     if (cached) {
-        transactions = JSON.parse(cached);
+        try { transactions = JSON.parse(cached); } catch (e) { transactions = defaultDemoData(); }
     } else {
-        // Dummy data awal agar UI terlihat interaktif & premium saat dicoba pertama kali
-        transactions = [
-            { id: "d1", date: getOffsetDate(0), user_id: currentUser.id, amount: 85000, category: "Makanan & Minuman", type: "expense", description: "Beli Kopi Susu & Roti Bakar" },
-            { id: "d2", date: getOffsetDate(-1), user_id: currentUser.id, amount: 450000, category: "Belanja", type: "expense", description: "Pakaian Kaos Kasual" },
-            { id: "d3", date: getOffsetDate(-2), user_id: currentUser.id, amount: 15000000, category: "Gaji / Pemasukan", type: "income", description: "Transfer Gaji Pokok Mei" },
-            { id: "d4", date: getOffsetDate(-3), user_id: currentUser.id, amount: 350000, category: "Tagihan & Utilitas", type: "expense", description: "Tagihan Wi-Fi Rumah" },
-            { id: "d5", date: getOffsetDate(-4), user_id: currentUser.id, amount: 120000, category: "Transportasi", type: "expense", description: "Isi Ulang Kartu Commuter & Ojol" },
-            { id: "d6", date: getOffsetDate(-5), user_id: currentUser.id, amount: 2500000, category: "Investasi", type: "income", description: "Dividen Reksa Dana Saham" }
-        ];
-        localStorage.setItem(`tx_cache_${currentUser.email}`, JSON.stringify(transactions));
+        transactions = defaultDemoData();
+        cacheTransactions();
     }
     updateDashboardMetrics();
 }
 
-function getOffsetDate(days) {
-    const date = new Date();
-    date.setDate(date.getDate() + days);
-    return date.toISOString().substring(0, 10);
+function cacheTransactions() {
+    if (!currentUser?.email) return;
+    localStorage.setItem(`sk_tx_${currentUser.email}`, JSON.stringify(transactions));
 }
 
-// Update metrik dashboard, list, dan redraw charts
+function defaultDemoData() {
+    const uid = currentUser?.id || 'demo';
+    return [
+        { id: 'd1', date: offsetDate(0), user_id: uid, amount: 350000, category: 'Makanan & Minuman', type: 'income', description: 'Jual nasi bungkus pagi' },
+        { id: 'd2', date: offsetDate(-1), user_id: uid, amount: 125000, category: 'Belanja', type: 'expense', description: 'Beli bahan baku dapur' },
+        { id: 'd3', date: offsetDate(-2), user_id: uid, amount: 5500000, category: 'Gaji / Pemasukan', type: 'income', description: 'Pendapatan bersih mingguan' },
+        { id: 'd4', date: offsetDate(-3), user_id: uid, amount: 200000, category: 'Tagihan & Utilitas', type: 'expense', description: 'Token listrik warung' },
+        { id: 'd5', date: offsetDate(-4), user_id: uid, amount: 85000, category: 'Transportasi', type: 'expense', description: 'Ongkos kirim order online' },
+        { id: 'd6', date: offsetDate(-5), user_id: uid, amount: 450000, category: 'Makanan & Minuman', type: 'income', description: 'Jual kue pesanan arisan' },
+        { id: 'd7', date: offsetDate(-6), user_id: uid, amount: 300000, category: 'Investasi', type: 'income', description: 'Dividen reksa dana' },
+        { id: 'd8', date: offsetDate(-7), user_id: uid, amount: 50000, category: 'Hiburan & Rekreasi', type: 'expense', description: 'Nonton film akhir pekan' },
+    ];
+}
+
 function updateDashboardMetrics() {
-    let totalIncome = 0;
-    let totalExpense = 0;
-    
+    let totalIncome = 0, totalExpense = 0;
     const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth();
-    
+    const cy = now.getFullYear(), cm = now.getMonth();
+
     transactions.forEach(t => {
-        const tDate = new Date(t.date);
-        const isCurrentMonth = tDate.getFullYear() === currentYear && tDate.getMonth() === currentMonth;
-        
-        if (t.type === 'income') {
-            totalIncome += parseFloat(t.amount) || 0;
-        } else {
-            totalExpense += parseFloat(t.amount) || 0;
-        }
+        const d = new Date(t.date);
+        if (t.type === 'income') totalIncome += parseFloat(t.amount) || 0;
+        else totalExpense += parseFloat(t.amount) || 0;
     });
 
     const balance = totalIncome - totalExpense;
+    const months = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
 
-    // Render statistik
-    document.getElementById('stat-total-balance').innerText = formatRupiah(balance);
-    document.getElementById('stat-total-income').innerText = formatRupiah(totalIncome);
-    document.getElementById('stat-total-expense').innerText = formatRupiah(totalExpense);
-    
-    const monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
-    const currentMonthName = monthNames[currentMonth];
-    
-    document.getElementById('stat-income-desc').innerText = `Total Pemasukan di ${currentMonthName} ${currentYear}`;
-    document.getElementById('stat-expense-desc').innerText = `Total Pengeluaran di ${currentMonthName} ${currentYear}`;
+    setInnerText('stat-total-balance', formatRupiah(balance));
+    setInnerText('stat-total-income', formatRupiah(totalIncome));
+    setInnerText('stat-total-expense', formatRupiah(totalExpense));
+    setInnerText('stat-income-desc', `Total pemasukan bulan ini`);
+    setInnerText('stat-expense-desc', `Total pengeluaran bulan ini`);
 
-    // Render list dan charts
     renderTransactionsList();
     renderCharts();
 }
 
-// Render daftar transaksi ke UI
 function renderTransactionsList(searchQuery = '') {
-    const listContainer = document.getElementById('tx-list-container');
-    const emptyState = document.getElementById('tx-empty-state');
-    const listElement = document.getElementById('tx-list');
-    
-    listElement.innerHTML = '';
-    
-    // Saring berdasarkan tab filter (Semua, Pemasukan, Pengeluaran)
+    const listEl = document.getElementById('tx-list');
+    const emptyEl = document.getElementById('tx-empty-state');
+    const containerEl = document.getElementById('tx-list-container');
+    if (!listEl) return;
+    listEl.innerHTML = '';
+
     let filtered = transactions;
     if (currentTxFilter !== 'all') {
         filtered = filtered.filter(t => t.type === currentTxFilter);
     }
-    
-    // Filter pencarian
-    filtered = filtered.filter(t => {
-        const matchesQuery = t.description.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                             t.category.toLowerCase().includes(searchQuery.toLowerCase());
-        return matchesQuery;
-    });
-
-    if (filtered.length === 0) {
-        listContainer.classList.add('hidden');
-        emptyState.classList.remove('hidden');
-        return;
+    if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        filtered = filtered.filter(t =>
+            (t.description || '').toLowerCase().includes(q) ||
+            (t.category || '').toLowerCase().includes(q)
+        );
     }
 
-    emptyState.classList.add('hidden');
-    listContainer.classList.remove('hidden');
+    if (filtered.length === 0) {
+        containerEl?.classList.add('hidden');
+        emptyEl?.classList.remove('hidden');
+        return;
+    }
+    emptyEl?.classList.add('hidden');
+    containerEl?.classList.remove('hidden');
 
     filtered.forEach(t => {
         const item = document.createElement('div');
-        item.className = 'py-3.5 flex items-center justify-between group hover:bg-slate-800/20 px-2 rounded-xl transition duration-150';
-        
-        const iconClass = getCategoryIcon(t.category);
-        const colorClass = t.type === 'income' ? 'text-brandTeal bg-brandTeal/10' : 'text-brandCoral bg-brandCoral/10';
-        const sign = t.type === 'income' ? '+' : '-';
-        const amountColor = t.type === 'income' ? 'text-brandTeal' : 'text-brandCoral';
+        item.className = 'flex items-center justify-between py-3 px-1 group hover:bg-slate-800/30 rounded-xl transition-all duration-150';
+
+        const icon = getCategoryIcon(t.category);
+        const catClass = getCategoryClass(t.category);
+        const isIncome = t.type === 'income';
+        const sign = isIncome ? '+' : '-';
+        const amountColor = isIncome ? 'text-emerald-400' : 'text-rose-400';
 
         item.innerHTML = `
-            <div class="flex items-center space-x-3.5 min-w-0">
-                <div class="w-10 h-10 rounded-xl ${colorClass} flex items-center justify-center flex-shrink-0 text-sm">
-                    <i class="${iconClass}"></i>
+            <div class="flex items-center gap-3 min-w-0 flex-1">
+                <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-sm ${catClass}">
+                    ${icon}
                 </div>
                 <div class="min-w-0">
-                    <span class="block text-xs font-semibold text-slate-200 truncate">${t.description || 'Tanpa Catatan'}</span>
-                    <div class="flex items-center space-x-2 mt-0.5">
-                        <span class="text-[10px] font-bold text-slate-500 uppercase">${t.category}</span>
-                        <span class="text-[10px] text-slate-500">•</span>
-                        <span class="text-[10px] text-slate-500">${formatDateIndo(t.date)}</span>
-                    </div>
+                    <p class="text-xs font-semibold text-slate-200 truncate">${t.description || 'Tanpa keterangan'}</p>
+                    <p class="text-[10px] text-slate-500 mt-0.5">${t.category} · ${formatDateShort(t.date)}</p>
                 </div>
             </div>
-            <div class="flex items-center space-x-3 flex-shrink-0">
-                <span class="text-xs font-bold ${amountColor}">${sign} ${formatRupiah(t.amount)}</span>
-                <button onclick="handleDeleteTransaction('${t.id}')" class="opacity-0 group-hover:opacity-100 focus:opacity-100 text-slate-500 hover:text-brandCoral p-1.5 rounded-lg hover:bg-brandCoral/10 transition duration-150 min-h-[32px] w-[32px] flex items-center justify-center" title="Hapus Transaksi">
-                    <i class="fa-solid fa-trash-can text-xs"></i>
+            <div class="flex items-center gap-2 flex-shrink-0 ml-2">
+                <span class="text-xs font-black ${amountColor}">${sign} ${formatRupiah(t.amount)}</span>
+                <button onclick="handleDeleteTransaction('${t.id}')"
+                    class="opacity-0 group-hover:opacity-100 focus:opacity-100 w-7 h-7 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 flex items-center justify-center transition-all min-h-0">
+                    <i class="fa-solid fa-trash-can text-[9px]"></i>
                 </button>
             </div>
         `;
-        listElement.appendChild(item);
+        listEl.appendChild(item);
     });
 }
 
-// Menghapus Transaksi di Supabase
 async function handleDeleteTransaction(id) {
-    if (!confirm("Apakah Anda yakin ingin menghapus transaksi ini?")) return;
+    if (!confirm("Hapus transaksi ini?")) return;
 
-    const isDemo = localStorage.getItem('is_demo_mode') === 'true';
-
-    // UI Responsif: Hapus lokal dahulu
-    const originalTx = [...transactions];
+    const isDemo = localStorage.getItem('sk_demo') === 'true';
+    const original = [...transactions];
     transactions = transactions.filter(t => t.id !== id);
     updateDashboardMetrics();
-    
-    localStorage.setItem(`tx_cache_${currentUser.email}`, JSON.stringify(transactions));
+    cacheTransactions();
 
     if (!supabaseClient || isDemo) {
-        showToast("Transaksi dihapus secara lokal offline.", "success");
+        showToast("Transaksi dihapus secara lokal.", "success");
         return;
     }
 
     try {
-        const { error } = await supabaseClient
-            .from('transactions')
-            .delete()
-            .eq('id', id);
-            
+        const { error } = await supabaseClient.from('transactions').delete().eq('id', id);
         if (error) throw error;
-        showToast("Transaksi berhasil dihapus dari database Supabase.", "success");
-    } catch (e) {
-        console.error("Gagal hapus data dari database Supabase:", e);
-        transactions = originalTx; // Rollback
+        showToast("Transaksi dihapus dari database.", "success");
+    } catch (err) {
+        transactions = original;
         updateDashboardMetrics();
-        showToast("Hapus gagal. Hubungi administrator.", "error");
+        showToast("Gagal menghapus: " + err.message, "error");
     }
 }
 
-// Mengganti filter tipe transaksi di list
 function setTxFilter(filter) {
     currentTxFilter = filter;
-    
-    // Update visual tab filter
     const allBtn = document.getElementById('filter-tx-all');
-    const incomeBtn = document.getElementById('filter-tx-income');
-    const expenseBtn = document.getElementById('filter-tx-expense');
-    
-    const activeClass = "px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-brandPurple text-white shadow-neon-purple active:scale-95 transition-transform duration-100 min-h-[36px]";
-    const inactiveClass = "px-3.5 py-1.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-slate-200 active:scale-95 transition-transform duration-100 min-h-[36px]";
-    
-    if (allBtn) allBtn.className = filter === 'all' ? activeClass : inactiveClass;
-    if (incomeBtn) incomeBtn.className = filter === 'income' ? activeClass : inactiveClass;
-    if (expenseBtn) expenseBtn.className = filter === 'expense' ? activeClass : inactiveClass;
-    
-    // Efek transisi halus (fade out -> render -> fade in)
-    const listElement = document.getElementById('tx-list');
-    if (listElement) {
-        listElement.style.opacity = '0';
-        listElement.style.transition = 'opacity 0.15s ease-in-out';
-        
+    const incBtn = document.getElementById('filter-tx-income');
+    const expBtn = document.getElementById('filter-tx-expense');
+
+    const active = 'px-3 py-1.5 text-[10px] font-bold rounded-lg bg-violet-600 text-white btn-press min-h-0';
+    const inactive = 'px-3 py-1.5 text-[10px] font-bold rounded-lg text-slate-400 btn-press min-h-0';
+
+    if (allBtn) allBtn.className = filter === 'all' ? active : inactive;
+    if (incBtn) incBtn.className = filter === 'income' ? active : inactive;
+    if (expBtn) expBtn.className = filter === 'expense' ? active : inactive;
+
+    const listEl = document.getElementById('tx-list');
+    if (listEl) {
+        listEl.style.opacity = '0';
+        listEl.style.transition = 'opacity 0.15s';
         setTimeout(() => {
-            renderTransactionsList(document.getElementById('search-tx').value);
-            listElement.style.opacity = '1';
-        }, 150);
-    } else {
-        renderTransactionsList(document.getElementById('search-tx').value);
+            renderTransactionsList(document.getElementById('search-tx')?.value || '');
+            listEl.style.opacity = '1';
+        }, 120);
     }
 }
 
-// Mengganti tab aktif di perangkat mobile (Tab Routing)
 function switchMobileTab(tab) {
-    if (window.innerWidth >= 768) return; // Hiraukan jika di desktop
-    
+    if (window.innerWidth >= 768) return;
     currentMobileTab = tab;
-    
-    const dashboardSec = document.getElementById('section-dashboard');
+
+    const dashSec = document.getElementById('section-dashboard');
     const txSec = document.getElementById('section-transactions');
-    
     const btnDash = document.getElementById('btn-nav-dashboard');
     const btnTx = document.getElementById('btn-nav-transactions');
-    
-    const activeNavClass = "flex flex-col items-center justify-center flex-1 h-full text-brandPurple active:scale-95 transition-transform duration-100";
-    const inactiveNavClass = "flex flex-col items-center justify-center flex-1 h-full text-slate-400 active:scale-95 transition-transform duration-100";
-    
+
+    const activeNav = 'flex flex-col items-center gap-0.5 flex-1 py-2 text-violet-400 min-h-0';
+    const inactiveNav = 'flex flex-col items-center gap-0.5 flex-1 py-2 text-slate-500 min-h-0';
+
     if (tab === 'dashboard') {
-        if (dashboardSec) dashboardSec.classList.remove('hidden');
-        if (txSec) txSec.classList.add('hidden');
-        
-        if (btnDash) btnDash.className = activeNavClass;
-        if (btnTx) btnTx.className = inactiveNavClass;
+        dashSec?.classList.remove('hidden');
+        txSec?.classList.add('hidden');
+        if (btnDash) btnDash.className = activeNav;
+        if (btnTx) btnTx.className = inactiveNav;
     } else {
-        if (dashboardSec) dashboardSec.classList.add('hidden');
-        if (txSec) txSec.classList.remove('hidden');
-        
-        if (btnTx) btnTx.className = activeNavClass;
-        if (btnDash) btnDash.className = inactiveNavClass;
+        txSec?.classList.remove('hidden');
+        dashSec?.classList.add('hidden');
+        if (btnTx) btnTx.className = activeNav;
+        if (btnDash) btnDash.className = inactiveNav;
     }
 }
 
-// Helper category icons mapping
-function getCategoryIcon(category) {
-    switch(category) {
-        case "Makanan & Minuman": return "fa-solid fa-utensils";
-        case "Transportasi": return "fa-solid fa-car-side";
-        case "Belanja": return "fa-solid fa-bag-shopping";
-        case "Tagihan & Utilitas": return "fa-solid fa-bolt";
-        case "Hiburan & Rekreasi": return "fa-solid fa-gamepad";
-        case "Gaji / Pemasukan": return "fa-solid fa-wallet";
-        case "Investasi": return "fa-solid fa-chart-line";
-        default: return "fa-solid fa-tag";
-    }
-}
-
-// Menggambar Charts dengan Chart.js
+// =============================================
+// CHARTS
+// =============================================
 function renderCharts() {
-    const ctxCashflow = document.getElementById('cashflowChart').getContext('2d');
-    const ctxCategory = document.getElementById('categoryChart').getContext('2d');
-    
+    const ctxCashflow = document.getElementById('cashflowChart')?.getContext('2d');
+    const ctxCategory = document.getElementById('categoryChart')?.getContext('2d');
+    if (!ctxCashflow || !ctxCategory) return;
+
     if (cashflowChartInstance) cashflowChartInstance.destroy();
     if (categoryChartInstance) categoryChartInstance.destroy();
 
-    // 1. DATA TREN ARUS KAS (LINE CHART)
-    const filterDays = parseInt(document.getElementById('chart-filter').value) || 30;
-    const labels = [];
-    const incomeData = [];
-    const expenseData = [];
+    const filterDays = parseInt(document.getElementById('chart-filter')?.value) || 30;
+    const labels = [], incomeData = [], expenseData = [];
 
     for (let i = filterDays - 1; i >= 0; i--) {
-        labels.push(getOffsetDate(-i));
+        labels.push(offsetDate(-i));
         incomeData.push(0);
         expenseData.push(0);
     }
@@ -796,145 +714,84 @@ function renderCharts() {
     transactions.forEach(t => {
         const idx = labels.indexOf(t.date);
         if (idx !== -1) {
-            if (t.type === 'income') {
-                incomeData[idx] += parseFloat(t.amount) || 0;
-            } else {
-                expenseData[idx] += parseFloat(t.amount) || 0;
-            }
+            if (t.type === 'income') incomeData[idx] += parseFloat(t.amount) || 0;
+            else expenseData[idx] += parseFloat(t.amount) || 0;
         }
     });
 
-    const formattedLabels = labels.map(l => {
+    const fmtLabels = labels.map(l => {
         const d = new Date(l);
-        const day = d.getDate();
-        const months = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
-        return `${day} ${months[d.getMonth()]}`;
+        return `${d.getDate()} ${['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'][d.getMonth()]}`;
     });
+
+    const chartDefaults = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { position: 'bottom', labels: { color: '#64748b', font: { size: 10 }, padding: 12 } },
+            tooltip: {
+                callbacks: { label: ctx => `${ctx.dataset.label}: ${formatRupiah(ctx.raw)}` }
+            }
+        }
+    };
 
     cashflowChartInstance = new Chart(ctxCashflow, {
         type: 'line',
         data: {
-            labels: formattedLabels,
+            labels: fmtLabels,
             datasets: [
                 {
-                    label: 'Pemasukan',
-                    data: incomeData,
-                    borderColor: '#0d9488',
-                    backgroundColor: 'rgba(13, 148, 136, 0.05)',
-                    borderWidth: 2,
-                    tension: 0.35,
-                    fill: true,
-                    pointRadius: filterDays > 30 ? 0 : 2,
+                    label: 'Pemasukan', data: incomeData,
+                    borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.07)',
+                    borderWidth: 2, tension: 0.4, fill: true, pointRadius: filterDays > 30 ? 0 : 2, pointBackgroundColor: '#10b981'
                 },
                 {
-                    label: 'Pengeluaran',
-                    data: expenseData,
-                    borderColor: '#f43f5e',
-                    backgroundColor: 'rgba(244, 63, 94, 0.05)',
-                    borderWidth: 2,
-                    tension: 0.35,
-                    fill: true,
-                    pointRadius: filterDays > 30 ? 0 : 2,
+                    label: 'Pengeluaran', data: expenseData,
+                    borderColor: '#f43f5e', backgroundColor: 'rgba(244,63,94,0.07)',
+                    borderWidth: 2, tension: 0.4, fill: true, pointRadius: filterDays > 30 ? 0 : 2, pointBackgroundColor: '#f43f5e'
                 }
             ]
         },
         options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    position: 'bottom',
-                    labels: { color: '#94a3b8', font: { size: 10, weight: 600 } }
-                },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            return `${context.dataset.label}: Rp ${context.raw.toLocaleString('id-ID')}`;
-                        }
-                    }
-                }
-            },
+            ...chartDefaults,
             scales: {
-                x: {
-                    grid: { display: false },
-                    ticks: { color: '#64748b', font: { size: 8 } }
-                },
+                x: { grid: { display: false }, ticks: { color: '#475569', font: { size: 9 }, maxTicksLimit: 8 } },
                 y: {
                     grid: { color: 'rgba(255,255,255,0.03)' },
-                    ticks: {
-                        color: '#64748b',
-                        font: { size: 9 },
-                        callback: function(value) {
-                            if (value >= 1000000) return (value / 1000000) + 'M';
-                            if (value >= 1000) return (value / 1000) + 'K';
-                            return value;
-                        }
-                    }
+                    ticks: { color: '#475569', font: { size: 9 }, callback: v => v >= 1000000 ? (v / 1000000).toFixed(1) + 'M' : v >= 1000 ? (v / 1000) + 'K' : v }
                 }
             }
         }
     });
 
-    // 2. DATA PENGELUARAN KATEGORI (DOUGHNUT CHART)
-    const categoryTotals = {};
-    const expenses = transactions.filter(t => t.type === 'expense');
-    
-    expenses.forEach(t => {
-        categoryTotals[t.category] = (categoryTotals[t.category] || 0) + (parseFloat(t.amount) || 0);
+    const catTotals = {};
+    transactions.filter(t => t.type === 'expense').forEach(t => {
+        catTotals[t.category] = (catTotals[t.category] || 0) + (parseFloat(t.amount) || 0);
     });
 
-    const categoryLabels = Object.keys(categoryTotals);
-    const categoryData = Object.values(categoryTotals);
+    const catLabels = Object.keys(catTotals);
+    const catData = Object.values(catTotals);
+    const chartColors = ['#f43f5e', '#8b5cf6', '#10b981', '#f59e0b', '#38bdf8', '#f472b6', '#94a3b8', '#818cf8'];
 
-    const chartColors = [
-        '#f43f5e', // Coral
-        '#8b5cf6', // Purple
-        '#0284c7', // Sky Blue
-        '#f59e0b', // Amber/Orange
-        '#10b981', // Emerald
-        '#ec4899', // Pink
-        '#64748b', // Slate
-    ];
-
-    if (categoryLabels.length === 0) {
-        categoryLabels.push("Belum ada");
-        categoryData.push(1);
-        chartColors[0] = 'rgba(255,255,255,0.08)';
-    }
+    if (catLabels.length === 0) { catLabels.push('Belum ada'); catData.push(1); chartColors[0] = '#1e293b'; }
 
     categoryChartInstance = new Chart(ctxCategory, {
         type: 'doughnut',
         data: {
-            labels: categoryLabels,
-            datasets: [{
-                data: categoryData,
-                backgroundColor: chartColors,
-                borderWidth: 0,
-                hoverOffset: 4
-            }]
+            labels: catLabels,
+            datasets: [{ data: catData, backgroundColor: chartColors, borderWidth: 0, hoverOffset: 4 }]
         },
         options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            cutout: '70%',
+            ...chartDefaults,
+            cutout: '72%',
             plugins: {
-                legend: {
-                    position: 'bottom',
-                    labels: {
-                        color: '#94a3b8',
-                        boxWidth: 10,
-                        font: { size: 10, weight: 500 },
-                        padding: 12
-                    }
-                },
+                ...chartDefaults.plugins,
                 tooltip: {
-                    enabled: categoryLabels[0] !== "Belum ada",
+                    enabled: catLabels[0] !== 'Belum ada',
                     callbacks: {
-                        label: function(context) {
-                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                            const val = context.raw;
-                            const pct = ((val / total) * 100).toFixed(1);
-                            return ` Rp ${val.toLocaleString('id-ID')} (${pct}%)`;
+                        label: ctx => {
+                            const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                            return ` ${formatRupiah(ctx.raw)} (${((ctx.raw / total) * 100).toFixed(1)}%)`;
                         }
                     }
                 }
@@ -943,159 +800,152 @@ function renderCharts() {
     });
 }
 
-// Modal Form Inputs & Calculator Handlers
-function openInputModal() {
+// =============================================
+// INPUT MODAL
+// =============================================
+function openInputModal(trigger = 'manual') {
     const modal = document.getElementById('modal-input');
     const container = document.getElementById('modal-input-container');
-    
     modal.classList.remove('hidden');
     modal.classList.add('flex');
-    
     resetInputForm();
-    
-    setTimeout(() => {
-        if (container) {
-            container.classList.remove('translate-y-full');
-            container.classList.add('translate-y-0');
-        }
-    }, 50);
+
+    requestAnimationFrame(() => {
+        container?.classList.add('open');
+    });
+
+    if (trigger === 'voice') {
+        setTimeout(() => startVoiceRecording(), 400);
+    }
 }
 
-// Animasi menutup modal form input transaksi
 function closeInputModal() {
     const modal = document.getElementById('modal-input');
     const container = document.getElementById('modal-input-container');
-    
-    if (container) {
-        container.classList.remove('translate-y-0');
-        container.classList.add('translate-y-full');
-    }
-    
+    container?.classList.remove('open');
+    stopSpeechListening();
+
     setTimeout(() => {
         modal.classList.add('hidden');
         modal.classList.remove('flex');
-        stopSpeechListening();
     }, 300);
-}
-
-function setInputType(type) {
-    activeInputType = type;
-    const expenseTab = document.getElementById('tab-type-expense');
-    const incomeTab = document.getElementById('tab-type-income');
-
-    if (type === 'expense') {
-        expenseTab.className = "py-2.5 text-xs font-semibold rounded-lg bg-brandCoral text-white shadow-neon-coral transition-all duration-150 min-h-[40px] active:scale-95 transition-transform";
-        incomeTab.className = "py-2.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-slate-200 transition-all duration-150 min-h-[40px] active:scale-95 transition-transform";
-        document.getElementById('input-category').value = "Lainnya";
-    } else {
-        incomeTab.className = "py-2.5 text-xs font-semibold rounded-lg bg-brandTeal text-white shadow-neon-teal transition-all duration-150 min-h-[40px] active:scale-95 transition-transform";
-        expenseTab.className = "py-2.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-slate-200 transition-all duration-150 min-h-[40px] active:scale-95 transition-transform";
-        document.getElementById('input-category').value = "Gaji / Pemasukan";
-    }
 }
 
 function resetInputForm() {
     calcExpression = '';
-    document.getElementById('input-amount').value = '0';
-    document.getElementById('input-description').value = '';
+    const amtEl = document.getElementById('input-amount');
+    if (amtEl) amtEl.value = '0';
+    const descEl = document.getElementById('input-description');
+    if (descEl) descEl.value = '';
     setInputType('expense');
-    document.getElementById('calculator-keypad').classList.remove('hidden');
+    document.getElementById('calculator-keypad')?.classList.remove('hidden');
     clearOCRPreview();
+    document.getElementById('ai-processing-box')?.classList.add('hidden');
 }
 
-// Built-in Numpad Calculator logic
+function setInputType(type) {
+    activeInputType = type;
+    const expBtn = document.getElementById('tab-type-expense');
+    const incBtn = document.getElementById('tab-type-income');
+
+    if (type === 'expense') {
+        if (expBtn) expBtn.className = 'flex-1 py-2.5 text-xs font-bold rounded-xl bg-rose-600 text-white btn-press';
+        if (incBtn) incBtn.className = 'flex-1 py-2.5 text-xs font-bold rounded-xl text-slate-400 btn-press';
+        const cat = document.getElementById('input-category');
+        if (cat && !['income', 'Gaji / Pemasukan', 'Investasi'].includes(cat.value)) cat.value = 'Lainnya';
+    } else {
+        if (incBtn) incBtn.className = 'flex-1 py-2.5 text-xs font-bold rounded-xl bg-emerald-600 text-white btn-press';
+        if (expBtn) expBtn.className = 'flex-1 py-2.5 text-xs font-bold rounded-xl text-slate-400 btn-press';
+        const cat = document.getElementById('input-category');
+        if (cat) cat.value = 'Gaji / Pemasukan';
+    }
+}
+
+function toggleCalcPad() {
+    document.getElementById('calculator-keypad')?.classList.toggle('hidden');
+}
+
 function pressCalc(val) {
-    const amountField = document.getElementById('input-amount');
-    
+    const field = document.getElementById('input-amount');
+    if (!field) return;
+
     if (val === 'C') {
         calcExpression = '';
-        amountField.value = '0';
+        field.value = '0';
     } else if (val === 'DEL') {
         calcExpression = calcExpression.toString().slice(0, -1);
-        amountField.value = formatExpressionDisplay(calcExpression) || '0';
+        field.value = formatDisplayNumber(calcExpression) || '0';
     } else if (val === '=') {
         if (!calcExpression) return;
         const result = evaluateExpression(calcExpression);
-        amountField.value = formatNumberWithDots(result);
+        field.value = formatDisplayNumber(result.toString());
         calcExpression = result.toString();
     } else {
-        if (calcExpression === '' && !isNaN(val)) {
+        if (calcExpression === '' && !isNaN(val) && val !== '.') {
             calcExpression = val;
         } else {
             calcExpression += val;
         }
-        amountField.value = formatExpressionDisplay(calcExpression);
+        field.value = formatDisplayNumber(calcExpression);
     }
 }
 
 function evaluateExpression(str) {
-    // Hilangkan titik ribuan terlebih dahulu agar bisa dievaluasi
-    str = str.replace(/\./g, '');
-    str = str.replace(/×/g, '*').replace(/÷/g, '/');
+    str = str.replace(/\./g, '').replace(/×/g, '*').replace(/÷/g, '/');
     const sanitized = str.replace(/[^0-9+\-*/().]/g, '');
     try {
-        const calcResult = new Function(`return ${sanitized}`)();
-        if (isNaN(calcResult) || !isFinite(calcResult)) return "Error";
-        return Math.max(0, Math.round(calcResult));
-    } catch(e) {
-        return "Error";
-    }
+        const result = new Function(`return ${sanitized}`)();
+        if (isNaN(result) || !isFinite(result)) return 0;
+        return Math.max(0, Math.round(result));
+    } catch { return 0; }
 }
 
-// Google Gemini API Request Wrapper
-async function queryGemini(promptText, base64ImageData = null, mimeType = null) {
-    const geminiKey = localStorage.getItem('gemini_api_key') || DEFAULT_GEMINI_API_KEY;
-    if (!geminiKey) {
-        showToast("Gemini API Key belum dikonfigurasi!", "warning");
-        toggleApiSettings();
-        return null;
-    }
+async function submitTransaction() {
+    const rawAmt = document.getElementById('input-amount')?.value.replace(/\./g, '') || '0';
+    const amount = parseInt(rawAmt) || 0;
+    const category = document.getElementById('input-category')?.value || 'Lainnya';
+    const date = document.getElementById('input-date')?.value || todayString();
+    const description = document.getElementById('input-description')?.value.trim() || 'Tanpa keterangan';
+    const type = activeInputType;
 
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`;
-    const parts = [{ text: promptText }];
-    
-    if (base64ImageData && mimeType) {
-        parts.push({
-            inlineData: {
-                mimeType: mimeType,
-                data: base64ImageData
-            }
-        });
-    }
+    if (amount <= 0) { showToast("Nominal harus lebih dari Rp 0", "warning"); return; }
 
-    const payload = { contents: [{ parts: parts }] };
+    const isDemo = localStorage.getItem('sk_demo') === 'true';
+    const tempId = 'local_' + Date.now();
+    const newTx = { id: tempId, user_id: currentUser.id, amount, category, date, description, type };
+
+    transactions.unshift(newTx);
+    updateDashboardMetrics();
+    cacheTransactions();
+    closeInputModal();
+    showToast("Transaksi tersimpan! 🎉", "success");
+
+    if (!supabaseClient || isDemo) return;
 
     try {
-        const response = await fetch(endpoint, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
-        });
-        const data = await response.json();
-        if (data.error) {
-            console.error("Gemini API Error details:", data.error);
-            showToast(`Gemini API Error: ${data.error.message}`, "error");
-            return null;
+        const { data, error } = await supabaseClient
+            .from('transactions')
+            .insert([{ user_id: currentUser.id, amount, category, date, description, type }])
+            .select();
+        if (error) throw error;
+        if (data?.[0]) {
+            const idx = transactions.findIndex(t => t.id === tempId);
+            if (idx !== -1) { transactions[idx].id = data[0].id; cacheTransactions(); }
+            showToast("Tersinkronisasi ke Supabase ✓", "success");
         }
-        if (data.candidates && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0].text) {
-            return data.candidates[0].content.parts[0].text;
-        } else {
-            throw new Error("Respon kosong atau format tidak sesuai");
-        }
-    } catch (error) {
-        console.error("Gemini API Request Error:", error);
-        showToast(`Gemini Gagal: ${error.message}`, "error");
-        return null;
+    } catch (err) {
+        console.error("Supabase insert error:", err);
+        showToast("Tersimpan lokal, sinkronisasi tertunda.", "warning");
     }
 }
 
-// 1. VOICE COMMAND LOGIC
-let speechRecognitionInstance = null;
-
+// =============================================
+// VOICE INPUT (Web Speech API + Gemini Parser)
+// =============================================
 function startVoiceRecording() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-        showToast("Browser Anda tidak mendukung Web Speech API (Gunakan Chrome/Edge).", "error");
+        showToast("Browser tidak mendukung Speech API. Gunakan Chrome atau Edge.", "error");
         return;
     }
 
@@ -1115,250 +965,335 @@ function startVoiceRecording() {
     const processIcon = document.getElementById('ai-processing-icon');
     const transcriptPreview = document.getElementById('ai-transcript-preview');
 
-    micBtn.classList.add('recording-active');
-    processBox.classList.remove('hidden');
-    processStatus.innerText = "Sedang mendengarkan suara Anda...";
-    processStatus.className = "font-semibold text-brandCoral animate-pulse";
-    processIcon.className = "fa-solid fa-microphone text-brandCoral animate-bounce";
-    transcriptPreview.innerText = 'Bicaralah kalimat seperti: "Catat pengeluaran makan siang sebesar lima puluh ribu rupiah"';
+    if (micBtn) micBtn.classList.add('recording-active');
+    if (processBox) processBox.classList.remove('hidden');
+    if (processStatus) processStatus.textContent = 'Mendengarkan suara Anda...';
+    if (processIcon) processIcon.className = 'fa-solid fa-microphone text-violet-400 fa-bounce text-xs';
+    if (transcriptPreview) transcriptPreview.textContent = 'Coba ucapkan: "Jual nasi bungkus 35 ribu" atau "Beli token listrik 50 ribu"';
 
-    speechRecognitionInstance.onresult = async function(event) {
+    speechRecognitionInstance.onresult = async (event) => {
         const transcript = event.results[0][0].transcript;
-        transcriptPreview.innerText = `Suara Anda: "${transcript}"`;
-        
-        processStatus.innerText = "Sedang mengekstrak data keuangan via AI...";
-        processStatus.className = "font-semibold text-brandPurple";
-        processIcon.className = "fa-solid fa-circle-notch fa-spin text-brandPurple";
+        if (transcriptPreview) transcriptPreview.textContent = `🎙️ "${transcript}"`;
+        if (processStatus) processStatus.textContent = 'AI sedang mengekstrak data...';
+        if (processIcon) processIcon.className = 'fa-solid fa-circle-notch fa-spin text-violet-400 text-xs';
 
-        const parsedJsonStr = await queryGemini(
-            `Analisis kalimat transaksi keuangan berikut: "${transcript}".
-            Ekstrak data menjadi format JSON mentah tanpa blok format kode markdown (tanpa \`\`\`json).
-            Skema JSON harus tepat seperti ini:
-            {
-              "amount": <number>,
-              "category": "<kategori>",
-              "type": "income" atau "expense",
-              "description": "<keterangan singkat>"
-            }
-            Kategori HANYA boleh bernilai salah satu dari:
-            "Makanan & Minuman", "Transportasi", "Belanja", "Tagihan & Utilitas", "Hiburan & Rekreasi", "Gaji / Pemasukan", "Investasi", "Lainnya".
-            Jika kalimat menunjukkan pemasukan, set tipe ke "income". Jika pengeluaran, set tipe ke "expense".`
-        );
-
-        if (parsedJsonStr) {
-            applyParsedTxData(parsedJsonStr);
+        const result = await parseTransactionWithGemini(transcript);
+        if (result) {
+            applyParsedData(result);
+            showToast("AI berhasil mengisi form dari suara Anda! 🤖", "success");
         } else {
-            showToast("AI gagal mendeteksi detail transaksi. Coba ulangi dengan suara lebih jelas.", "error");
+            showToast("AI gagal mendeteksi transaksi. Coba ucapkan lebih jelas.", "warning");
         }
         stopSpeechListening();
     };
 
-    speechRecognitionInstance.onerror = function(event) {
-        console.error("Speech Recognition Error:", event.error);
-        showToast("Mikrofon gagal merespon atau terjadi time out.", "error");
+    speechRecognitionInstance.onerror = (event) => {
+        console.error("Speech recognition error:", event.error);
+        if (event.error === 'not-allowed') {
+            showToast("Izin mikrofon ditolak. Aktifkan izin di browser.", "error");
+        } else if (event.error !== 'no-speech') {
+            showToast("Mikrofon error: " + event.error, "error");
+        }
         stopSpeechListening();
     };
 
-    speechRecognitionInstance.onend = function() {
-        stopSpeechListening();
-    };
-
+    speechRecognitionInstance.onend = () => { stopSpeechListening(); };
     speechRecognitionInstance.start();
 }
 
 function stopSpeechListening() {
     const micBtn = document.getElementById('btn-voice-input');
     const processBox = document.getElementById('ai-processing-box');
-    
+    if (micBtn) micBtn.classList.remove('recording-active');
     if (speechRecognitionInstance) {
-        speechRecognitionInstance.stop();
+        try { speechRecognitionInstance.stop(); } catch (e) {}
         speechRecognitionInstance = null;
     }
 
-    micBtn.classList.remove('recording-active');
-    processBox.classList.add('hidden');
+    setTimeout(() => {
+        if (processBox) processBox.classList.add('hidden');
+    }, 1500);
 }
 
-function applyParsedTxData(jsonStr) {
+// =============================================
+// GEMINI API
+// =============================================
+async function queryGemini(promptText, base64ImageData = null, mimeType = null) {
+    const geminiKey = localStorage.getItem('sk_gemini_key') || DEFAULT_GEMINI_API_KEY;
+    if (!geminiKey) {
+        showToast("Gemini API Key belum diisi! Buka Pengaturan API & Kredensial di dashboard.", "warning");
+        toggleApiSettings();
+        return null;
+    }
+
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`;
+    const parts = [{ text: promptText }];
+    if (base64ImageData && mimeType) {
+        parts.push({ inlineData: { mimeType, data: base64ImageData } });
+    }
+
     try {
-        const cleanedStr = jsonStr.replace(/```json/g, '').replace(/```/g, '').trim();
-        const data = JSON.parse(cleanedStr);
-        
-        if (data.amount) {
-            document.getElementById('input-amount').value = data.amount;
-            calcExpression = data.amount.toString();
+        const resp = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts }] })
+        });
+        const json = await resp.json();
+        if (json.error) {
+            showToast(`Gemini error: ${json.error.message}`, "error");
+            return null;
         }
-        if (data.category) {
-            document.getElementById('input-category').value = data.category;
-        }
-        if (data.type) {
-            setInputType(data.type);
-        }
-        if (data.description) {
-            document.getElementById('input-description').value = data.description;
-        }
-        
-        showToast("Transaksi berhasil diurai otomatis oleh AI!", "success");
+        return json.candidates?.[0]?.content?.parts?.[0]?.text || null;
     } catch (err) {
-        console.error("Gagal parse respon JSON Gemini:", err, jsonStr);
-        showToast("AI memberikan respon yang tidak valid. Isi data secara manual.", "warning");
+        showToast(`Koneksi Gemini gagal: ${err.message}`, "error");
+        return null;
     }
 }
 
-// 2. OCR RECEIPT SCANNER LOGIC
+async function parseTransactionWithGemini(transcript) {
+    const prompt = `Analisis kalimat transaksi keuangan UMKM berikut dalam Bahasa Indonesia: "${transcript}".
+Ekstrak data menjadi format JSON mentah tanpa blok format kode markdown (tanpa \`\`\`json).
+Skema JSON yang harus dikembalikan PERSIS seperti ini:
+{
+  "amount": <number tanpa titik/koma pemisah ribuan>,
+  "category": "<kategori>",
+  "type": "income" atau "expense",
+  "description": "<keterangan singkat dalam Bahasa Indonesia>"
+}
+Kategori HANYA boleh bernilai salah satu dari:
+"Makanan & Minuman", "Transportasi", "Belanja", "Tagihan & Utilitas", "Hiburan & Rekreasi", "Gaji / Pemasukan", "Investasi", "Lainnya".
+Jika kalimat menunjukkan penjualan/pendapatan, set type ke "income". Jika pembelian/pengeluaran, set type ke "expense".
+Contoh: "Jual nasi bungkus 35 ribu" → {"amount":35000,"category":"Makanan & Minuman","type":"income","description":"Jual nasi bungkus"}`;
+
+    const raw = await queryGemini(prompt);
+    if (!raw) return null;
+
+    try {
+        const cleaned = raw.replace(/```json/g, '').replace(/```/g, '').trim();
+        return JSON.parse(cleaned);
+    } catch (e) {
+        console.error("Failed to parse Gemini response:", raw);
+        return null;
+    }
+}
+
+function applyParsedData(data) {
+    if (data.amount) {
+        const amtEl = document.getElementById('input-amount');
+        if (amtEl) {
+            amtEl.value = formatDisplayNumber(data.amount.toString());
+            calcExpression = data.amount.toString();
+        }
+    }
+    if (data.category) {
+        const catEl = document.getElementById('input-category');
+        if (catEl) catEl.value = data.category;
+    }
+    if (data.type) setInputType(data.type);
+    if (data.description) {
+        const descEl = document.getElementById('input-description');
+        if (descEl) descEl.value = data.description;
+    }
+}
+
+// =============================================
+// OCR RECEIPT SCANNER
+// =============================================
 async function handleReceiptOCR(event) {
-    const file = event.target.files[0];
+    const file = event.target.files?.[0];
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-        showToast("Harap pilih file gambar kuitansi.", "warning");
+        showToast("Pilih file gambar kuitansi.", "warning");
         return;
     }
 
     const previewBox = document.getElementById('ocr-preview-box');
-    const imgThumbnail = document.getElementById('ocr-img-thumbnail');
+    const imgThumb = document.getElementById('ocr-img-thumbnail');
     const fileName = document.getElementById('ocr-file-name');
     const fileSize = document.getElementById('ocr-file-size');
     const progressBar = document.getElementById('ocr-progress-bar');
+    const processBox = document.getElementById('ai-processing-box');
+    const processStatus = document.getElementById('ai-processing-status');
+    const processIcon = document.getElementById('ai-processing-icon');
 
-    previewBox.classList.remove('hidden');
-    fileName.innerText = file.name;
-    fileSize.innerText = `${(file.size / 1024).toFixed(1)} KB`;
-    progressBar.style.width = '20%';
+    if (previewBox) previewBox.classList.remove('hidden');
+    if (fileName) fileName.textContent = file.name;
+    if (fileSize) fileSize.textContent = `${(file.size / 1024).toFixed(1)} KB`;
+    if (progressBar) progressBar.style.width = '15%';
+    if (processBox) processBox.classList.remove('hidden');
+    if (processStatus) processStatus.textContent = 'Membaca foto kuitansi...';
+    if (processIcon) processIcon.className = 'fa-solid fa-circle-notch fa-spin text-violet-400 text-xs';
 
     const reader = new FileReader();
-    reader.onload = async function() {
-        imgThumbnail.src = reader.result;
-        progressBar.style.width = '50%';
-        
-        const base64String = reader.result;
-        const base64Data = base64String.split(',')[1];
-        const mimeType = base64String.split(';')[0].split(':')[1];
-        
-        progressBar.style.width = '70%';
+    reader.onload = async function () {
+        if (imgThumb) imgThumb.src = reader.result;
+        if (progressBar) progressBar.style.width = '40%';
 
-        const ocrPrompt = `Analisis foto struk belanja/kuitansi/nota ini. Ekstrak data total nominal akhir pengeluaran setelah diskon.
-        Ekstrak data menjadi format JSON mentah tanpa blok format kode markdown (tanpa \`\`\`json).
-        Skema JSON harus tepat seperti ini:
-        {
-          "amount": <number>,
-          "category": "<kategori>",
-          "description": "<nama merchant / keterangan belanja>"
-        }
-        Kategori HANYA boleh bernilai salah satu dari:
-        "Makanan & Minuman", "Transportasi", "Belanja", "Tagihan & Utilitas", "Hiburan & Rekreasi", "Lainnya".
-        Jika tidak ada kategori yang cocok, isi dengan "Lainnya".`;
+        const base64Data = reader.result.split(',')[1];
+        const mimeType = reader.result.split(';')[0].split(':')[1];
 
-        const parsedJsonStr = await queryGemini(ocrPrompt, base64Data, mimeType);
-        
-        progressBar.style.width = '100%';
-        
-        if (parsedJsonStr) {
-            applyParsedTxData(parsedJsonStr);
-            setInputType('expense');
+        if (progressBar) progressBar.style.width = '65%';
+
+        const prompt = `Analisis foto struk belanja/kuitansi/nota ini. Ekstrak data total nominal akhir pengeluaran setelah diskon jika ada.
+Ekstrak data menjadi format JSON mentah tanpa blok format kode markdown (tanpa \`\`\`json).
+Skema JSON yang harus dikembalikan PERSIS seperti ini:
+{
+  "amount": <number tanpa titik/koma>,
+  "category": "<kategori>",
+  "description": "<nama toko atau keterangan singkat>"
+}
+Kategori HANYA boleh bernilai salah satu dari:
+"Makanan & Minuman", "Transportasi", "Belanja", "Tagihan & Utilitas", "Hiburan & Rekreasi", "Lainnya".`;
+
+        const raw = await queryGemini(prompt, base64Data, mimeType);
+        if (progressBar) progressBar.style.width = '100%';
+
+        if (raw) {
+            try {
+                const cleaned = raw.replace(/```json/g, '').replace(/```/g, '').trim();
+                const data = JSON.parse(cleaned);
+                applyParsedData({ ...data, type: 'expense' });
+                showToast("OCR berhasil! Data kuitansi terisi otomatis. 📄", "success");
+            } catch (e) {
+                showToast("Gagal membaca kuitansi. Isi nominal secara manual.", "warning");
+            }
         } else {
-            showToast("Gagal mendeteksi teks struk kuitansi. Isi nominal secara manual.", "error");
+            showToast("Gagal membaca kuitansi. Coba foto yang lebih jelas.", "warning");
         }
+
+        if (processBox) setTimeout(() => processBox.classList.add('hidden'), 1500);
     };
     reader.readAsDataURL(file);
 }
 
 function clearOCRPreview() {
-    document.getElementById('ocr-preview-box').classList.add('hidden');
-    document.getElementById('ocr-image-upload').value = '';
-    document.getElementById('ocr-img-thumbnail').src = '';
+    document.getElementById('ocr-preview-box')?.classList.add('hidden');
+    const upload = document.getElementById('ocr-image-upload');
+    if (upload) upload.value = '';
+    const thumb = document.getElementById('ocr-img-thumbnail');
+    if (thumb) thumb.src = '';
+    const bar = document.getElementById('ocr-progress-bar');
+    if (bar) bar.style.width = '0%';
 }
 
-// Mengirimkan Transaksi baru ke Supabase
-async function submitTransaction() {
-    const amountRaw = document.getElementById('input-amount').value.replace(/\./g, '');
-    const amountVal = parseInt(amountRaw) || 0;
-    const category = document.getElementById('input-category').value;
-    const date = document.getElementById('input-date').value;
-    const description = document.getElementById('input-description').value.trim() || 'Tanpa keterangan';
-    const type = activeInputType;
+// =============================================
+// AI BUSINESS ANALYSIS
+// =============================================
+function openAiAnalysisModal() {
+    const modal = document.getElementById('modal-ai-analysis');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    // Reset to prompt state
+    document.getElementById('ai-analysis-loading')?.classList.add('hidden');
+    document.getElementById('ai-analysis-results')?.classList.add('hidden');
+    document.getElementById('ai-analysis-prompt')?.classList.remove('hidden');
+}
 
-    if (amountVal <= 0) {
-        showToast("Nominal transaksi harus lebih dari Rp 0", "warning");
+function closeAiAnalysisModal() {
+    document.getElementById('modal-ai-analysis')?.classList.add('hidden');
+    document.getElementById('modal-ai-analysis')?.classList.remove('flex');
+}
+
+async function runAiAnalysis() {
+    const promptEl = document.getElementById('ai-analysis-prompt');
+    const loadingEl = document.getElementById('ai-analysis-loading');
+    const resultsEl = document.getElementById('ai-analysis-results');
+    const insightsContainer = document.getElementById('ai-insights-container');
+
+    promptEl?.classList.add('hidden');
+    loadingEl?.classList.remove('hidden');
+    resultsEl?.classList.add('hidden');
+
+    const last10 = transactions.slice(0, 10);
+    if (last10.length === 0) {
+        loadingEl?.classList.add('hidden');
+        promptEl?.classList.remove('hidden');
+        showToast("Belum ada data transaksi untuk dianalisis.", "warning");
         return;
     }
 
-    if (!date) {
-        showToast("Tanggal transaksi wajib diisi", "warning");
+    const txSummary = last10.map(t =>
+        `- ${t.date}: ${t.type === 'income' ? 'PEMASUKAN' : 'PENGELUARAN'} Rp ${t.amount.toLocaleString('id-ID')} kategori "${t.category}" (${t.description})`
+    ).join('\n');
+
+    const prompt = `Anda adalah konsultan keuangan ahli untuk UMKM Indonesia.
+Berikut adalah 10 transaksi terakhir usaha:
+
+${txSummary}
+
+Berikan TEPAT 3 insight keuangan yang tajam, praktis, dan spesifik berdasarkan data di atas.
+Format respons HARUS berupa JSON array, tanpa blok format kode markdown:
+[
+  {"type": "warning"|"success"|"tip", "title": "<judul singkat>", "body": "<penjelasan 1-2 kalimat>"},
+  {"type": "warning"|"success"|"tip", "title": "<judul singkat>", "body": "<penjelasan 1-2 kalimat>"},
+  {"type": "warning"|"success"|"tip", "title": "<judul singkat>", "body": "<penjelasan 1-2 kalimat>"}
+]
+Gunakan Bahasa Indonesia yang mudah dipahami pemilik UMKM.`;
+
+    const raw = await queryGemini(prompt);
+    loadingEl?.classList.add('hidden');
+
+    if (!raw) {
+        promptEl?.classList.remove('hidden');
         return;
     }
-
-    const txData = {
-        amount: amountVal,
-        category: category,
-        date: date,
-        description: description,
-        type: type
-    };
-
-    const isDemo = localStorage.getItem('is_demo_mode') === 'true';
-    const tempId = 'local_' + Date.now();
-    const newLocalTx = { id: tempId, user_id: currentUser.id, ...txData };
-
-    // Sisi UI Responsif: Tambah lokal dahulu
-    transactions.unshift(newLocalTx);
-    updateDashboardMetrics();
-    
-    localStorage.setItem(`tx_cache_${currentUser.email}`, JSON.stringify(transactions));
-
-    closeInputModal();
-    showToast("Transaksi disimpan secara lokal.", "success");
-
-    if (!supabaseClient || isDemo) return;
 
     try {
-        // Kirim data ke tabel transactions Supabase
-        const { data, error } = await supabaseClient
-            .from('transactions')
-            .insert([{
-                user_id: currentUser.id,
-                ...txData
-            }])
-            .select();
+        const cleaned = raw.replace(/```json/g, '').replace(/```/g, '').trim();
+        const insights = JSON.parse(cleaned);
 
-        if (error) throw error;
-
-        // Ganti ID lokal sementara dengan ID yang dihasilkan database Supabase
-        if (data && data[0]) {
-            const idx = transactions.findIndex(t => t.id === tempId);
-            if (idx !== -1) {
-                transactions[idx].id = data[0].id;
-                localStorage.setItem(`tx_cache_${currentUser.email}`, JSON.stringify(transactions));
-                renderTransactionsList();
-            }
-            showToast("Transaksi berhasil disinkronisasi ke Supabase Database!", "success");
+        if (insightsContainer) {
+            insightsContainer.innerHTML = '';
+            insights.forEach(insight => {
+                const div = document.createElement('div');
+                const styles = {
+                    warning: { bg: 'bg-amber-500/10 border-amber-500/20', icon: 'fa-triangle-exclamation text-amber-400', title: 'text-amber-300' },
+                    success: { bg: 'bg-emerald-500/10 border-emerald-500/20', icon: 'fa-circle-check text-emerald-400', title: 'text-emerald-300' },
+                    tip: { bg: 'bg-violet-500/10 border-violet-500/20', icon: 'fa-lightbulb text-violet-400', title: 'text-violet-300' }
+                };
+                const s = styles[insight.type] || styles.tip;
+                div.className = `p-4 ${s.bg} border rounded-2xl`;
+                div.innerHTML = `
+                    <div class="flex items-start gap-3">
+                        <i class="fa-solid ${s.icon} mt-0.5 flex-shrink-0"></i>
+                        <div>
+                            <p class="text-xs font-bold ${s.title} mb-1">${insight.title}</p>
+                            <p class="text-[11px] text-slate-300 leading-relaxed">${insight.body}</p>
+                        </div>
+                    </div>`;
+                insightsContainer.appendChild(div);
+            });
         }
-    } catch(err) {
-        console.error("Gagal menyimpan transaksi ke Cloud Supabase:", err);
-        showToast("Sinkronisasi Cloud tertunda. Data disimpan secara luring.", "warning");
+
+        resultsEl?.classList.remove('hidden');
+    } catch (e) {
+        console.error("AI parse error:", e, raw);
+        showToast("AI memberikan respons yang tidak valid. Coba lagi.", "warning");
+        promptEl?.classList.remove('hidden');
     }
 }
 
-// 3. QR CODE WEB SYNC LOGIC
+// =============================================
+// QR SYNC (Token-Based Supabase Realtime)
+// =============================================
 function openQrModal() {
-    document.getElementById('modal-qr-sync').classList.remove('hidden');
-    document.getElementById('modal-qr-sync').classList.add('flex');
+    const modal = document.getElementById('modal-qr-sync');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
     setQrMode('share');
 }
 
 function closeQrModal() {
-    document.getElementById('modal-qr-sync').classList.add('hidden');
-    document.getElementById('modal-qr-sync').classList.remove('flex');
-    
+    document.getElementById('modal-qr-sync')?.classList.add('hidden');
+    document.getElementById('modal-qr-sync')?.classList.remove('flex');
     if (qrScannerInstance) {
-        try {
-            qrScannerInstance.clear();
-        } catch (e) {
-            console.error(e);
-        }
+        try { qrScannerInstance.clear(); } catch (e) {}
         qrScannerInstance = null;
     }
-    document.getElementById('qr-scanner-placeholder').classList.remove('hidden');
+    const placeholder = document.getElementById('qr-scanner-placeholder');
+    if (placeholder) placeholder.classList.remove('hidden');
+    if (shareSyncChannel) { shareSyncChannel.unsubscribe(); shareSyncChannel = null; }
 }
 
 function setQrMode(mode) {
@@ -1368,360 +1303,345 @@ function setQrMode(mode) {
     const shareSection = document.getElementById('qr-share-section');
     const scanSection = document.getElementById('qr-scan-section');
 
+    const active = 'flex-1 py-2 text-xs font-semibold rounded-lg bg-violet-600 text-white btn-press min-h-0';
+    const inactive = 'flex-1 py-2 text-xs font-semibold rounded-lg text-slate-400 btn-press min-h-0';
+
     if (mode === 'share') {
-        shareTab.className = "py-2.5 text-xs font-semibold rounded-lg bg-brandPurple text-white shadow-neon-purple active:scale-95 transition-transform min-h-[36px]";
-        scanTab.className = "py-2.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-slate-200 active:scale-95 transition-transform min-h-[36px]";
-        shareSection.classList.remove('hidden');
-        scanSection.classList.add('hidden');
-        
+        shareTab.className = active; scanTab.className = inactive;
+        shareSection?.classList.remove('hidden'); scanSection?.classList.add('hidden');
         generateSyncQrCode();
     } else {
-        scanTab.className = "py-2.5 text-xs font-semibold rounded-lg bg-brandPurple text-white shadow-neon-purple active:scale-95 transition-transform min-h-[36px]";
-        shareTab.className = "py-2.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-slate-200 active:scale-95 transition-transform min-h-[36px]";
-        scanSection.classList.remove('hidden');
-        shareSection.classList.add('hidden');
+        scanTab.className = active; shareTab.className = inactive;
+        scanSection?.classList.remove('hidden'); shareSection?.classList.add('hidden');
     }
 }
 
 function generateSyncQrCode() {
-    const qrContainer = document.getElementById('qrcode-container');
-    qrContainer.innerHTML = '';
+    const container = document.getElementById('qrcode-container');
+    if (!container || !currentUser) return;
+    container.innerHTML = '';
 
-    if (!currentUser) return;
+    // Only a short token in the QR — keeps it simple and scannable
+    const token = generateShortToken();
 
-    const payload = {
-        id: currentUser.id,
-        email: currentUser.email,
-        name: currentUser.name,
-        picture: currentUser.picture,
-        supabase_url: localStorage.getItem('supabase_url') || '',
-        supabase_key: localStorage.getItem('supabase_anon_key') || '',
-        gemini_key: localStorage.getItem('gemini_api_key') || '',
-        expires: Date.now() + (5 * 60 * 1000)
-    };
-
-    const token = btoa(encodeURIComponent(JSON.stringify(payload)));
-    
-    new QRCode(qrContainer, {
-        text: token,
-        width: 180,
-        height: 180,
-        colorDark : "#090d16",
-        colorLight : "#ffffff",
-        correctLevel : QRCode.CorrectLevel.H
+    new QRCode(container, {
+        text: 'sync_share:' + token,
+        width: 176,
+        height: 176,
+        colorDark: '#1e1b4b',
+        colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.M
     });
+
+    // Listen for a device requesting this session
+    if (shareSyncChannel) shareSyncChannel.unsubscribe();
+    if (!supabaseClient) return;
+
+    shareSyncChannel = supabaseClient.channel('sk-share-' + token);
+    shareSyncChannel.on('broadcast', { event: 'request-session' }, async ({ payload }) => {
+        // Push full session data to requesting device
+        await shareSyncChannel.send({
+            type: 'broadcast',
+            event: 'session-data',
+            payload: {
+                user: currentUser,
+                supabase_url: localStorage.getItem('sk_supabase_url') || '',
+                supabase_key: localStorage.getItem('sk_supabase_key') || '',
+                gemini_key: localStorage.getItem('sk_gemini_key') || ''
+            }
+        });
+        showToast("Sesi berhasil dikirim ke perangkat baru!", "success");
+        setTimeout(() => closeQrModal(), 1500);
+    }).subscribe();
 }
 
 function startQrCamera() {
-    document.getElementById('qr-scanner-placeholder').classList.add('hidden');
-    
-    qrScannerInstance = new Html5Qrcode("qr-reader");
-    const config = { fps: 10, qrbox: { width: 220, height: 220 } };
+    const placeholder = document.getElementById('qr-scanner-placeholder');
+    if (placeholder) placeholder.classList.add('hidden');
 
+    if (qrScannerInstance) {
+        try { qrScannerInstance.clear(); } catch (e) {}
+    }
+
+    qrScannerInstance = new Html5Qrcode('qr-reader');
     qrScannerInstance.start(
-        { facingMode: "environment" },
-        config,
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: { width: 200, height: 200 } },
         onQrScanSuccess,
-        onQrScanError
+        () => {}
     ).catch(err => {
-        console.error("Gagal membuka kamera:", err);
-        showToast("Akses kamera ditolak atau tidak ditemukan.", "error");
-        document.getElementById('qr-scanner-placeholder').classList.remove('hidden');
+        showToast("Akses kamera ditolak atau tidak tersedia.", "error");
+        if (placeholder) placeholder.classList.remove('hidden');
     });
 }
 
-function onQrScanSuccess(decodedText) {
+async function onQrScanSuccess(decodedText) {
+    // Stop scanner first to avoid repeated triggers
+    if (qrScannerInstance) { try { qrScannerInstance.stop(); } catch (e) {} }
+    if (loginQrScannerInstance) { try { loginQrScannerInstance.stop(); } catch (e) {} }
+
     try {
-        // Cek jika ini adalah WhatsApp Web-style login sync
-        if (decodedText && decodedText.startsWith('sync_login:')) {
-            const syncToken = decodedText.split(':')[1];
-            sendSessionToDevice(syncToken);
-            return;
-        }
-
-        const jsonStr = decodeURIComponent(atob(decodedText));
-        const payload = JSON.parse(jsonStr);
-
-        if (payload.expires && Date.now() > payload.expires) {
-            showToast("Kode QR telah kedaluwarsa. Muat ulang kode baru.", "error");
-            return;
-        }
-
-        currentUser = {
-            id: payload.id,
-            email: payload.email,
-            name: payload.name,
-            picture: payload.picture
-        };
-        localStorage.setItem('user_session', JSON.stringify(currentUser));
-        localStorage.setItem('is_demo_mode', 'false');
-        
-        if (payload.supabase_url) localStorage.setItem('supabase_url', payload.supabase_url);
-        if (payload.supabase_key) localStorage.setItem('supabase_anon_key', payload.supabase_key);
-        if (payload.gemini_key) localStorage.setItem('gemini_api_key', payload.gemini_key);
-
-        showToast("Sinkronisasi Sesi Supabase Berhasil!", "success");
-        
-        // Re-init client
-        if (payload.supabase_url && payload.supabase_key) {
-            supabaseClient = window.supabase.createClient(payload.supabase_url, payload.supabase_key);
-        }
-        
-        closeQrModal();
-        stopLoginQrScanner();
-        showDashboard();
-    } catch (err) {
-        console.error(err);
-        showToast("Kode QR tidak dikenal.", "error");
-    }
-}
-
-// Mengirim sesi login aktif ke perangkat lain via WebSocket Supabase Realtime
-async function sendSessionToDevice(syncToken) {
-    if (!supabaseClient) {
-        showToast("Supabase client belum dikonfigurasi!", "error");
-        return;
-    }
-    
-    showToast("Mengirim sesi login ke komputer...", "info");
-    
-    const sendChannel = supabaseClient.channel('sync-' + syncToken);
-    sendChannel.subscribe(async (status) => {
-        if (status === 'SUBSCRIBED') {
-            await sendChannel.send({
-                type: 'broadcast',
-                event: 'login-data',
-                payload: {
-                    user: currentUser,
-                    supabase_url: localStorage.getItem('supabase_url') || '',
-                    supabase_key: localStorage.getItem('supabase_anon_key') || '',
-                    gemini_key: localStorage.getItem('gemini_api_key') || ''
+        // === sync_login: HP (already logged in) scans login screen QR and pushes session ===
+        if (decodedText.startsWith('sync_login:')) {
+            const token = decodedText.split(':')[1];
+            if (!supabaseClient) {
+                showToast("Supabase belum terkonfigurasi di perangkat ini.", "error");
+                return;
+            }
+            const ch = supabaseClient.channel('sk-login-' + token);
+            ch.subscribe(async (status) => {
+                if (status === 'SUBSCRIBED') {
+                    await ch.send({
+                        type: 'broadcast',
+                        event: 'push-session',
+                        payload: {
+                            user: currentUser,
+                            supabase_url: localStorage.getItem('sk_supabase_url') || '',
+                            supabase_key: localStorage.getItem('sk_supabase_key') || '',
+                            gemini_key: localStorage.getItem('sk_gemini_key') || ''
+                        }
+                    });
+                    showToast("Sesi berhasil dikirim ke komputer!", "success");
+                    closeQrModal();
+                    setTimeout(() => ch.unsubscribe(), 2000);
                 }
             });
-            showToast("Sesi berhasil dikirim! Perangkat Anda akan otomatis masuk.", "success");
-            closeQrModal();
-            setTimeout(() => {
-                sendChannel.unsubscribe();
-            }, 1000);
+            return;
         }
-    });
-}
 
-// Mengatur mode login form vs masuk cepat QR
-function setLoginMode(mode) {
-    currentLoginMode = mode;
-    const formTab = document.getElementById('tab-login-form');
-    const qrTab = document.getElementById('tab-login-qr');
-    const formSection = document.getElementById('login-form-section');
-    const qrSection = document.getElementById('login-qr-section');
-
-    if (mode === 'form') {
-        formTab.className = "py-2 text-xs font-semibold rounded-lg bg-brandPurple text-white shadow-neon-purple active:scale-95 transition-transform min-h-[36px]";
-        qrTab.className = "py-2 text-xs font-semibold rounded-lg text-slate-400 hover:text-slate-200 active:scale-95 transition-transform min-h-[36px]";
-        formSection.classList.remove('hidden');
-        qrSection.classList.add('hidden');
-        stopLoginQrScanner();
-        
-        // Hentikan Realtime channel jika keluar dari QR mode
-        if (loginSyncChannel) {
-            loginSyncChannel.unsubscribe();
-            loginSyncChannel = null;
-        }
-    } else {
-        qrTab.className = "py-2 text-xs font-semibold rounded-lg bg-brandPurple text-white shadow-neon-purple active:scale-95 transition-transform min-h-[36px]";
-        formTab.className = "py-2 text-xs font-semibold rounded-lg text-slate-400 hover:text-slate-200 active:scale-95 transition-transform min-h-[36px]";
-        qrSection.classList.remove('hidden');
-        formSection.classList.add('hidden');
-        setLoginQrSubMode('show');
-    }
-}
-
-// Mengatur submode QR Login (Tampilkan QR vs Scan QR)
-function setLoginQrSubMode(submode) {
-    currentLoginQrSubMode = submode;
-    const btnShow = document.getElementById('btn-login-qr-show');
-    const btnScan = document.getElementById('btn-login-qr-scan');
-    const showPanel = document.getElementById('login-qr-show-panel');
-    const scanPanel = document.getElementById('login-qr-scan-panel');
-
-    if (submode === 'show') {
-        btnShow.className = "py-2 text-[10px] font-semibold rounded-lg bg-brandPurple text-white active:scale-95 transition-transform min-h-[32px]";
-        btnScan.className = "py-2 text-[10px] font-semibold rounded-lg text-slate-400 hover:text-slate-200 active:scale-95 transition-transform min-h-[32px]";
-        showPanel.classList.remove('hidden');
-        scanPanel.classList.add('hidden');
-        stopLoginQrScanner();
-        
-        initializeLoginQr();
-    } else {
-        btnScan.className = "py-2 text-[10px] font-semibold rounded-lg bg-brandPurple text-white active:scale-95 transition-transform min-h-[32px]";
-        btnShow.className = "py-2 text-[10px] font-semibold rounded-lg text-slate-400 hover:text-slate-200 active:scale-95 transition-transform min-h-[32px]";
-        scanPanel.classList.remove('hidden');
-        showPanel.classList.add('hidden');
-        
-        // Hentikan Realtime channel jika pindah ke mode scan
-        if (loginSyncChannel) {
-            loginSyncChannel.unsubscribe();
-            loginSyncChannel = null;
-        }
-    }
-}
-
-// Inisialisasi QR Code Login & Menunggu broadcast dari HP yang scan
-function initializeLoginQr() {
-    if (!supabaseClient) {
-        // Buat client sementara jika belum ada dari default URL/Key
-        const savedSupaUrl = localStorage.getItem('supabase_url') || DEFAULT_SUPABASE_URL;
-        const savedSupaKey = localStorage.getItem('supabase_anon_key') || DEFAULT_SUPABASE_ANON_KEY;
-        if (savedSupaUrl && savedSupaKey) {
-            try {
-                supabaseClient = window.supabase.createClient(savedSupaUrl, savedSupaKey);
-            } catch (err) {
-                console.error(err);
+        // === sync_share: New device scans logged-in device's QR, requests session ===
+        if (decodedText.startsWith('sync_share:')) {
+            const token = decodedText.split(':')[1];
+            initSupabaseIfNeeded();
+            if (!supabaseClient) {
+                showToast("Supabase belum terkonfigurasi.", "error");
+                return;
             }
+
+            showToast("QR terbaca! Meminta sesi dari perangkat lain...", "info");
+
+            const ch = supabaseClient.channel('sk-share-' + token);
+            ch.on('broadcast', { event: 'session-data' }, ({ payload }) => {
+                if (payload) {
+                    applyIncomingSession(payload);
+                    ch.unsubscribe();
+                }
+            }).subscribe(async (status) => {
+                if (status === 'SUBSCRIBED') {
+                    await ch.send({ type: 'broadcast', event: 'request-session', payload: { ts: Date.now() } });
+                }
+            });
+            return;
         }
-    }
-    
-    if (!supabaseClient) {
-        showToast("Supabase belum terkonfigurasi. Tidak dapat memuat kode QR login.", "error");
-        return;
-    }
 
-    const qrContainer = document.getElementById('login-qrcode-container');
-    if (!qrContainer) return;
-    qrContainer.innerHTML = '';
-
-    const syncToken = 'sync_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-    
-    new QRCode(qrContainer, {
-        text: 'sync_login:' + syncToken,
-        width: 140,
-        height: 140,
-        colorDark : "#090d16",
-        colorLight : "#ffffff",
-        correctLevel : QRCode.CorrectLevel.H
-    });
-
-    // Mulai mendengarkan Supabase Realtime channel
-    if (loginSyncChannel) {
-        loginSyncChannel.unsubscribe();
-    }
-
-    loginSyncChannel = supabaseClient.channel('sync-' + syncToken);
-    loginSyncChannel.on('broadcast', { event: 'login-data' }, ({ payload }) => {
-        if (payload) {
-            currentUser = payload.user;
-            localStorage.setItem('user_session', JSON.stringify(currentUser));
-            localStorage.setItem('is_demo_mode', 'false');
-            if (payload.supabase_url) localStorage.setItem('supabase_url', payload.supabase_url);
-            if (payload.supabase_key) localStorage.setItem('supabase_anon_key', payload.supabase_key);
-            if (payload.gemini_key) localStorage.setItem('gemini_api_key', payload.gemini_key);
-            
-            showToast("Masuk via QR berhasil!", "success");
-            
-            // Re-inisialisasi client
-            supabaseClient = window.supabase.createClient(payload.supabase_url, payload.supabase_key);
-            
-            loginSyncChannel.unsubscribe();
-            loginSyncChannel = null;
-            
-            showDashboard();
+        // Legacy: base64 encoded JSON (backward compatibility)
+        const jsonStr = decodeURIComponent(atob(decodedText));
+        const payload = JSON.parse(jsonStr);
+        if (payload.expires && Date.now() > payload.expires) {
+            showToast("QR Code sudah kedaluwarsa. Muat ulang kode baru.", "error");
+            return;
         }
-    }).subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-            console.log("Mendengarkan saluran sinkronisasi login:", syncToken);
-        }
-    });
+        applyIncomingSession({
+            user: { id: payload.id, email: payload.email, name: payload.name, picture: payload.picture },
+            supabase_url: payload.supabase_url,
+            supabase_key: payload.supabase_key,
+            gemini_key: payload.gemini_key
+        });
+    } catch (err) {
+        console.error("QR scan error:", err);
+        showToast("QR tidak dikenali.", "error");
+    }
 }
 
-function startLoginQrScanner() {
-    document.getElementById('login-qr-scanner-placeholder').classList.add('hidden');
-    
-    loginQrScannerInstance = new Html5Qrcode("login-qr-reader");
-    const config = { fps: 10, qrbox: { width: 180, height: 180 } };
+function applyIncomingSession(payload) {
+    currentUser = payload.user;
+    localStorage.setItem('sk_user', JSON.stringify(currentUser));
+    localStorage.setItem('sk_demo', 'false');
+    if (payload.supabase_url) localStorage.setItem('sk_supabase_url', payload.supabase_url);
+    if (payload.supabase_key) localStorage.setItem('sk_supabase_key', payload.supabase_key);
+    if (payload.gemini_key) localStorage.setItem('sk_gemini_key', payload.gemini_key);
 
-    loginQrScannerInstance.start(
-        { facingMode: "environment" },
-        config,
-        onQrScanSuccess,
-        (err) => {}
-    ).catch(err => {
-        console.error("Gagal membuka kamera login:", err);
-        showToast("Akses kamera ditolak atau tidak ditemukan.", "error");
-        document.getElementById('login-qr-scanner-placeholder').classList.remove('hidden');
-    });
-}
-
-function stopLoginQrScanner() {
-    if (loginQrScannerInstance) {
-        try {
-            loginQrScannerInstance.clear();
-        } catch (e) {
-            console.error(e);
-        }
-        loginQrScannerInstance = null;
+    if (payload.supabase_url && payload.supabase_key) {
+        supabaseClient = window.supabase.createClient(payload.supabase_url, payload.supabase_key);
     }
-    const placeholder = document.getElementById('login-qr-scanner-placeholder');
-    if (placeholder) placeholder.classList.remove('hidden');
+
+    showToast("Masuk via QR berhasil! 🎉", "success");
+    closeQrModal();
+    stopLoginQrScanner();
+    if (loginSyncChannel) { loginSyncChannel.unsubscribe(); loginSyncChannel = null; }
+    showDashboard();
 }
 
-
-function onQrScanError(err) {}
-
-// UTILITY FUNCTIONS: Formatting Currency, Date and Toasts
-function formatRupiah(number) {
-    return new Intl.NumberFormat('id-ID', {
-        style: 'currency',
-        currency: 'IDR',
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0
-    }).format(number);
+function initSupabaseIfNeeded() {
+    if (supabaseClient) return;
+    const url = localStorage.getItem('sk_supabase_url') || DEFAULT_SUPABASE_URL;
+    const key = localStorage.getItem('sk_supabase_key') || DEFAULT_SUPABASE_ANON_KEY;
+    if (url && key) {
+        try { supabaseClient = window.supabase.createClient(url, key); } catch (e) {}
+    }
 }
 
-function formatDateIndo(dateStr) {
+// =============================================
+// SETTINGS
+// =============================================
+function toggleApiSettings() {
+    const panel = document.getElementById('api-settings-panel');
+    const chevron = document.getElementById('api-settings-chevron');
+    panel?.classList.toggle('hidden');
+    chevron?.classList.toggle('rotate-180');
+}
+
+function saveApiSettings() {
+    const url = document.getElementById('input-supabase-url')?.value.trim() || '';
+    const key = document.getElementById('input-supabase-key')?.value.trim() || '';
+    const gemini = document.getElementById('input-gemini-key')?.value.trim() || '';
+
+    localStorage.setItem('sk_supabase_url', url);
+    localStorage.setItem('sk_supabase_key', key);
+    localStorage.setItem('sk_gemini_key', gemini);
+
+    if (url && key) {
+        try { supabaseClient = window.supabase.createClient(url, key); } catch (e) {}
+    }
+
+    showToast("Konfigurasi API berhasil disimpan! ✓", "success");
+    toggleApiSettings();
+    if (currentUser) loadData();
+}
+
+// =============================================
+// THEME
+// =============================================
+function toggleTheme() {
+    if (document.documentElement.classList.contains('dark')) {
+        document.documentElement.classList.remove('dark');
+        localStorage.setItem('sk_theme', 'light');
+    } else {
+        document.documentElement.classList.add('dark');
+        localStorage.setItem('sk_theme', 'dark');
+    }
+}
+
+// =============================================
+// PASSWORD TOGGLE
+// =============================================
+function togglePasswordVisibility(inputId, btn) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    if (input.type === 'password') {
+        input.type = 'text';
+        btn.innerHTML = '<i class="fa-solid fa-eye-slash text-xs"></i>';
+    } else {
+        input.type = 'password';
+        btn.innerHTML = '<i class="fa-solid fa-eye text-xs"></i>';
+    }
+}
+
+// =============================================
+// UTILITY HELPERS
+// =============================================
+function formatRupiah(n) {
+    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
+}
+
+function formatDisplayNumber(str) {
+    if (!str) return '';
+    // Format each number group in expression with dots
+    return str.toString().replace(/\d+/g, match => match.replace(/\B(?=(\d{3})+(?!\d))/g, '.'));
+}
+
+function todayString() {
+    return new Date().toISOString().substring(0, 10);
+}
+
+function offsetDate(days) {
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    return d.toISOString().substring(0, 10);
+}
+
+function formatDateShort(dateStr) {
     if (!dateStr) return '';
-    const date = new Date(dateStr);
-    const day = date.getDate();
-    const months = [
-        "Januari", "Februari", "Maret", "April", "Mei", "Juni",
-        "Juli", "Agustus", "September", "Oktober", "November", "Desember"
-    ];
-    return `${day} ${months[date.getMonth()]} ${date.getFullYear()}`;
+    const d = new Date(dateStr);
+    const months = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+    return `${d.getDate()} ${months[d.getMonth()]}`;
 }
 
+function setInnerText(id, text) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
+}
+
+function generateShortToken() {
+    return Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 6);
+}
+
+function setButtonLoading(btn, loading, defaultHTML) {
+    if (!btn) return;
+    if (loading) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin mr-2"></i>Mohon tunggu...';
+    } else {
+        btn.disabled = false;
+        btn.innerHTML = defaultHTML;
+    }
+}
+
+// Category icons & colors
+function getCategoryIcon(cat) {
+    const icons = {
+        'Makanan & Minuman': '<i class="fa-solid fa-utensils"></i>',
+        'Transportasi': '<i class="fa-solid fa-car-side"></i>',
+        'Belanja': '<i class="fa-solid fa-bag-shopping"></i>',
+        'Tagihan & Utilitas': '<i class="fa-solid fa-bolt"></i>',
+        'Hiburan & Rekreasi': '<i class="fa-solid fa-gamepad"></i>',
+        'Gaji / Pemasukan': '<i class="fa-solid fa-sack-dollar"></i>',
+        'Investasi': '<i class="fa-solid fa-chart-line"></i>',
+        'Lainnya': '<i class="fa-solid fa-tag"></i>',
+    };
+    return icons[cat] || icons['Lainnya'];
+}
+
+function getCategoryClass(cat) {
+    const classes = {
+        'Makanan & Minuman': 'cat-makanan',
+        'Transportasi': 'cat-transportasi',
+        'Belanja': 'cat-belanja',
+        'Tagihan & Utilitas': 'cat-tagihan',
+        'Hiburan & Rekreasi': 'cat-hiburan',
+        'Gaji / Pemasukan': 'cat-gaji',
+        'Investasi': 'cat-investasi',
+        'Lainnya': 'cat-lainnya',
+    };
+    return classes[cat] || 'cat-lainnya';
+}
+
+// =============================================
+// TOAST NOTIFICATIONS
+// =============================================
 function showToast(message, type = 'info') {
     const container = document.getElementById('toast-container');
+    if (!container) return;
+
     const toast = document.createElement('div');
-    
-    let typeClass = 'bg-slate-900 border-indigo-500 text-indigo-400';
-    let icon = 'fa-solid fa-info-circle';
-    
-    if (type === 'success') {
-        typeClass = 'bg-slate-900 border-brandTeal text-brandTeal shadow-neon-teal';
-        icon = 'fa-solid fa-circle-check';
-    } else if (type === 'error') {
-        typeClass = 'bg-slate-900 border-brandCoral text-brandCoral shadow-neon-coral';
-        icon = 'fa-solid fa-circle-xmark';
-    } else if (type === 'warning') {
-        typeClass = 'bg-slate-900 border-yellow-500 text-yellow-500';
-        icon = 'fa-solid fa-triangle-exclamation';
-    }
+    const configs = {
+        success: { border: 'border-emerald-500/40', icon: 'fa-circle-check text-emerald-400', bg: 'bg-slate-900/95' },
+        error:   { border: 'border-rose-500/40',    icon: 'fa-circle-xmark text-rose-400',    bg: 'bg-slate-900/95' },
+        warning: { border: 'border-amber-500/40',   icon: 'fa-triangle-exclamation text-amber-400', bg: 'bg-slate-900/95' },
+        info:    { border: 'border-violet-500/40',  icon: 'fa-circle-info text-violet-400',   bg: 'bg-slate-900/95' },
+    };
+    const cfg = configs[type] || configs.info;
 
-    toast.className = `p-4 border backdrop-blur-md rounded-2xl flex items-center space-x-3 shadow-glass transition-all duration-300 transform translate-x-12 opacity-0 pointer-events-auto`;
+    toast.className = `toast-enter flex items-start gap-3 p-3.5 ${cfg.bg} border ${cfg.border} rounded-2xl shadow-card pointer-events-auto max-w-xs backdrop-blur-md`;
     toast.innerHTML = `
-        <i class="${icon} text-lg flex-shrink-0"></i>
-        <span class="text-xs font-semibold text-slate-200">${message}</span>
+        <i class="fa-solid ${cfg.icon} text-sm mt-0.5 flex-shrink-0"></i>
+        <span class="text-xs font-semibold text-slate-200 leading-relaxed">${message}</span>
     `;
-
     container.appendChild(toast);
 
     setTimeout(() => {
-        toast.classList.remove('translate-x-12', 'opacity-0');
-    }, 50);
-
-    setTimeout(() => {
-        toast.classList.add('translate-x-12', 'opacity-0');
-        setTimeout(() => {
-            toast.remove();
-        }, 300);
-    }, 4000);
+        toast.classList.remove('toast-enter');
+        toast.classList.add('toast-exit');
+        setTimeout(() => toast.remove(), 300);
+    }, 3800);
 }
