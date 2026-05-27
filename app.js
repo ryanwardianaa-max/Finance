@@ -101,6 +101,20 @@ function initApp() {
 
 // Menghubungkan kontrol tombol dengan fungsinya
 function setupEventListeners() {
+    // Form Auth Toggles
+    document.getElementById('link-show-register').addEventListener('click', function(e) {
+        e.preventDefault();
+        showAuthForm('register');
+    });
+    document.getElementById('link-show-login').addEventListener('click', function(e) {
+        e.preventDefault();
+        showAuthForm('login');
+    });
+
+    // Form Submits
+    document.getElementById('form-login').addEventListener('submit', loginWithEmail);
+    document.getElementById('form-register').addEventListener('submit', registerWithEmail);
+
     // Mode Google Sign-in Supabase Auth
     document.getElementById('btn-google-login').addEventListener('click', loginWithGoogle);
 
@@ -206,6 +220,114 @@ function saveApiSettings() {
     // Refresh data jika sedang login
     if (currentUser) {
         loadData();
+    }
+}
+
+// Toggle login & register forms
+function showAuthForm(mode) {
+    const loginForm = document.getElementById('form-login');
+    const registerForm = document.getElementById('form-register');
+    
+    if (mode === 'register') {
+        loginForm.classList.add('hidden');
+        registerForm.classList.remove('hidden');
+    } else {
+        loginForm.classList.remove('hidden');
+        registerForm.classList.add('hidden');
+    }
+}
+
+// Login using email and password
+async function loginWithEmail(e) {
+    if (e) e.preventDefault();
+    if (!supabaseClient) {
+        showToast("Supabase belum dikonfigurasi! Harap lengkapi URL dan Anon Key terlebih dahulu.", "error");
+        toggleApiSettings();
+        return;
+    }
+
+    const email = document.getElementById('login-email').value.trim();
+    const password = document.getElementById('login-password').value;
+
+    localStorage.setItem('is_demo_mode', 'false');
+
+    try {
+        const { data, error } = await supabaseClient.auth.signInWithPassword({
+            email: email,
+            password: password
+        });
+
+        if (error) throw error;
+
+        if (data && data.user) {
+            currentUser = {
+                id: data.user.id,
+                email: data.user.email,
+                name: data.user.user_metadata.full_name || data.user.email,
+                picture: data.user.user_metadata.avatar_url || 'https://via.placeholder.com/150'
+            };
+            localStorage.setItem('user_session', JSON.stringify(currentUser));
+            showToast("Masuk berhasil!", "success");
+            showDashboard();
+        }
+    } catch (e) {
+        console.error("Kesalahan Login Email:", e.message);
+        showToast(`Masuk Gagal: ${e.message}`, "error");
+    }
+}
+
+// Register new account with email and password
+async function registerWithEmail(e) {
+    if (e) e.preventDefault();
+    if (!supabaseClient) {
+        showToast("Supabase belum dikonfigurasi! Harap lengkapi URL dan Anon Key terlebih dahulu.", "error");
+        toggleApiSettings();
+        return;
+    }
+
+    const name = document.getElementById('register-name').value.trim();
+    const email = document.getElementById('register-email').value.trim();
+    const password = document.getElementById('register-password').value;
+
+    if (password.length < 6) {
+        showToast("Password minimal harus 6 karakter!", "warning");
+        return;
+    }
+
+    localStorage.setItem('is_demo_mode', 'false');
+
+    try {
+        const { data, error } = await supabaseClient.auth.signUp({
+            email: email,
+            password: password,
+            options: {
+                data: {
+                    full_name: name
+                }
+            }
+        });
+
+        if (error) throw error;
+
+        if (data && data.user) {
+            if (data.session) {
+                currentUser = {
+                    id: data.user.id,
+                    email: data.user.email,
+                    name: data.user.user_metadata.full_name || data.user.email,
+                    picture: data.user.user_metadata.avatar_url || 'https://via.placeholder.com/150'
+                };
+                localStorage.setItem('user_session', JSON.stringify(currentUser));
+                showToast("Pendaftaran berhasil dan otomatis masuk!", "success");
+                showDashboard();
+            } else {
+                showToast("Pendaftaran berhasil! Silakan periksa email untuk verifikasi (atau langsung coba masuk jika tidak perlu verifikasi).", "info");
+                showAuthForm('login');
+            }
+        }
+    } catch (e) {
+        console.error("Kesalahan Pendaftaran:", e.message);
+        showToast(`Pendaftaran Gagal: ${e.message}`, "error");
     }
 }
 
