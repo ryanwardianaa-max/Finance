@@ -30,6 +30,10 @@ let currentTxFilter = 'all'; // 'all' | 'income' | 'expense'
 let currentMobileTab = 'dashboard'; // 'dashboard' | 'transactions'
 let currentQrMode = 'share'; // 'share' atau 'scan'
 let qrScannerInstance = null;
+let loginSyncChannel = null;
+let loginQrScannerInstance = null;
+let currentLoginMode = 'form'; // 'form' atau 'qr'
+let currentLoginQrSubMode = 'show'; // 'show' atau 'scan'
 
 // Instans Chart.js untuk dihancurkan sebelum digambar ulang
 let cashflowChartInstance = null;
@@ -1428,6 +1432,13 @@ function startQrCamera() {
 
 function onQrScanSuccess(decodedText) {
     try {
+        // Cek jika ini adalah WhatsApp Web-style login sync
+        if (decodedText && decodedText.startsWith('sync_login:')) {
+            const syncToken = decodedText.split(':')[1];
+            sendSessionToDevice(syncToken);
+            return;
+        }
+
         const jsonStr = decodeURIComponent(atob(decodedText));
         const payload = JSON.parse(jsonStr);
 
@@ -1457,12 +1468,202 @@ function onQrScanSuccess(decodedText) {
         }
         
         closeQrModal();
+        stopLoginQrScanner();
         showDashboard();
     } catch (err) {
         console.error(err);
         showToast("Kode QR tidak dikenal.", "error");
     }
 }
+
+// Mengirim sesi login aktif ke perangkat lain via WebSocket Supabase Realtime
+async function sendSessionToDevice(syncToken) {
+    if (!supabaseClient) {
+        showToast("Supabase client belum dikonfigurasi!", "error");
+        return;
+    }
+    
+    showToast("Mengirim sesi login ke komputer...", "info");
+    
+    const sendChannel = supabaseClient.channel('sync-' + syncToken);
+    sendChannel.subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+            await sendChannel.send({
+                type: 'broadcast',
+                event: 'login-data',
+                payload: {
+                    user: currentUser,
+                    supabase_url: localStorage.getItem('supabase_url') || '',
+                    supabase_key: localStorage.getItem('supabase_anon_key') || '',
+                    gemini_key: localStorage.getItem('gemini_api_key') || ''
+                }
+            });
+            showToast("Sesi berhasil dikirim! Perangkat Anda akan otomatis masuk.", "success");
+            closeQrModal();
+            setTimeout(() => {
+                sendChannel.unsubscribe();
+            }, 1000);
+        }
+    });
+}
+
+// Mengatur mode login form vs masuk cepat QR
+function setLoginMode(mode) {
+    currentLoginMode = mode;
+    const formTab = document.getElementById('tab-login-form');
+    const qrTab = document.getElementById('tab-login-qr');
+    const formSection = document.getElementById('login-form-section');
+    const qrSection = document.getElementById('login-qr-section');
+
+    if (mode === 'form') {
+        formTab.className = "py-2 text-xs font-semibold rounded-lg bg-brandPurple text-white shadow-neon-purple active:scale-95 transition-transform min-h-[36px]";
+        qrTab.className = "py-2 text-xs font-semibold rounded-lg text-slate-400 hover:text-slate-200 active:scale-95 transition-transform min-h-[36px]";
+        formSection.classList.remove('hidden');
+        qrSection.classList.add('hidden');
+        stopLoginQrScanner();
+        
+        // Hentikan Realtime channel jika keluar dari QR mode
+        if (loginSyncChannel) {
+            loginSyncChannel.unsubscribe();
+            loginSyncChannel = null;
+        }
+    } else {
+        qrTab.className = "py-2 text-xs font-semibold rounded-lg bg-brandPurple text-white shadow-neon-purple active:scale-95 transition-transform min-h-[36px]";
+        formTab.className = "py-2 text-xs font-semibold rounded-lg text-slate-400 hover:text-slate-200 active:scale-95 transition-transform min-h-[36px]";
+        qrSection.classList.remove('hidden');
+        formSection.classList.add('hidden');
+        setLoginQrSubMode('show');
+    }
+}
+
+// Mengatur submode QR Login (Tampilkan QR vs Scan QR)
+function setLoginQrSubMode(submode) {
+    currentLoginQrSubMode = submode;
+    const btnShow = document.getElementById('btn-login-qr-show');
+    const btnScan = document.getElementById('btn-login-qr-scan');
+    const showPanel = document.getElementById('login-qr-show-panel');
+    const scanPanel = document.getElementById('login-qr-scan-panel');
+
+    if (submode === 'show') {
+        btnShow.className = "py-2 text-[10px] font-semibold rounded-lg bg-brandPurple text-white active:scale-95 transition-transform min-h-[32px]";
+        btnScan.className = "py-2 text-[10px] font-semibold rounded-lg text-slate-400 hover:text-slate-200 active:scale-95 transition-transform min-h-[32px]";
+        showPanel.classList.remove('hidden');
+        scanPanel.classList.add('hidden');
+        stopLoginQrScanner();
+        
+        initializeLoginQr();
+    } else {
+        btnScan.className = "py-2 text-[10px] font-semibold rounded-lg bg-brandPurple text-white active:scale-95 transition-transform min-h-[32px]";
+        btnShow.className = "py-2 text-[10px] font-semibold rounded-lg text-slate-400 hover:text-slate-200 active:scale-95 transition-transform min-h-[32px]";
+        scanPanel.classList.remove('hidden');
+        showPanel.classList.add('hidden');
+        
+        // Hentikan Realtime channel jika pindah ke mode scan
+        if (loginSyncChannel) {
+            loginSyncChannel.unsubscribe();
+            loginSyncChannel = null;
+        }
+    }
+}
+
+// Inisialisasi QR Code Login & Menunggu broadcast dari HP yang scan
+function initializeLoginQr() {
+    if (!supabaseClient) {
+        // Buat client sementara jika belum ada dari default URL/Key
+        const savedSupaUrl = localStorage.getItem('supabase_url') || DEFAULT_SUPABASE_URL;
+        const savedSupaKey = localStorage.getItem('supabase_anon_key') || DEFAULT_SUPABASE_ANON_KEY;
+        if (savedSupaUrl && savedSupaKey) {
+            try {
+                supabaseClient = window.supabase.createClient(savedSupaUrl, savedSupaKey);
+            } catch (err) {
+                console.error(err);
+            }
+        }
+    }
+    
+    if (!supabaseClient) {
+        showToast("Supabase belum terkonfigurasi. Tidak dapat memuat kode QR login.", "error");
+        return;
+    }
+
+    const qrContainer = document.getElementById('login-qrcode-container');
+    if (!qrContainer) return;
+    qrContainer.innerHTML = '';
+
+    const syncToken = 'sync_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    
+    new QRCode(qrContainer, {
+        text: 'sync_login:' + syncToken,
+        width: 140,
+        height: 140,
+        colorDark : "#090d16",
+        colorLight : "#ffffff",
+        correctLevel : QRCode.CorrectLevel.H
+    });
+
+    // Mulai mendengarkan Supabase Realtime channel
+    if (loginSyncChannel) {
+        loginSyncChannel.unsubscribe();
+    }
+
+    loginSyncChannel = supabaseClient.channel('sync-' + syncToken);
+    loginSyncChannel.on('broadcast', { event: 'login-data' }, ({ payload }) => {
+        if (payload) {
+            currentUser = payload.user;
+            localStorage.setItem('user_session', JSON.stringify(currentUser));
+            localStorage.setItem('is_demo_mode', 'false');
+            if (payload.supabase_url) localStorage.setItem('supabase_url', payload.supabase_url);
+            if (payload.supabase_key) localStorage.setItem('supabase_anon_key', payload.supabase_key);
+            if (payload.gemini_key) localStorage.setItem('gemini_api_key', payload.gemini_key);
+            
+            showToast("Masuk via QR berhasil!", "success");
+            
+            // Re-inisialisasi client
+            supabaseClient = window.supabase.createClient(payload.supabase_url, payload.supabase_key);
+            
+            loginSyncChannel.unsubscribe();
+            loginSyncChannel = null;
+            
+            showDashboard();
+        }
+    }).subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+            console.log("Mendengarkan saluran sinkronisasi login:", syncToken);
+        }
+    });
+}
+
+function startLoginQrScanner() {
+    document.getElementById('login-qr-scanner-placeholder').classList.add('hidden');
+    
+    loginQrScannerInstance = new Html5Qrcode("login-qr-reader");
+    const config = { fps: 10, qrbox: { width: 180, height: 180 } };
+
+    loginQrScannerInstance.start(
+        { facingMode: "environment" },
+        config,
+        onQrScanSuccess,
+        (err) => {}
+    ).catch(err => {
+        console.error("Gagal membuka kamera login:", err);
+        showToast("Akses kamera ditolak atau tidak ditemukan.", "error");
+        document.getElementById('login-qr-scanner-placeholder').classList.remove('hidden');
+    });
+}
+
+function stopLoginQrScanner() {
+    if (loginQrScannerInstance) {
+        try {
+            loginQrScannerInstance.clear();
+        } catch (e) {
+            console.error(e);
+        }
+        loginQrScannerInstance = null;
+    }
+    const placeholder = document.getElementById('login-qr-scanner-placeholder');
+    if (placeholder) placeholder.classList.remove('hidden');
+}
+
 
 function onQrScanError(err) {}
 
