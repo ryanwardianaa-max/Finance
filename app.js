@@ -810,9 +810,16 @@ function openInputModal(trigger = 'manual') {
     modal.classList.add('flex');
     resetInputForm();
 
-    requestAnimationFrame(() => {
+    // On desktop, remove transform so modal shows as centered dialog immediately
+    const isDesktop = window.innerWidth >= 768;
+    if (isDesktop) {
+        container?.classList.remove('bottom-sheet');
         container?.classList.add('open');
-    });
+    } else {
+        requestAnimationFrame(() => {
+            setTimeout(() => container?.classList.add('open'), 20);
+        });
+    }
 
     if (trigger === 'voice') {
         setTimeout(() => startVoiceRecording(), 400);
@@ -823,12 +830,14 @@ function closeInputModal() {
     const modal = document.getElementById('modal-input');
     const container = document.getElementById('modal-input-container');
     container?.classList.remove('open');
+    container?.classList.add('bottom-sheet'); // restore for next mobile open
     stopSpeechListening();
 
+    const delay = window.innerWidth >= 768 ? 0 : 300;
     setTimeout(() => {
         modal.classList.add('hidden');
         modal.classList.remove('flex');
-    }, 300);
+    }, delay);
 }
 
 function resetInputForm() {
@@ -1026,28 +1035,60 @@ async function queryGemini(promptText, base64ImageData = null, mimeType = null) 
         return null;
     }
 
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`;
+    // Model priority list - fallback otomatis jika satu gagal
+    const modelCandidates = [
+        'gemini-2.0-flash',
+        'gemini-2.0-flash-lite',
+        'gemini-1.5-flash-latest',
+        'gemini-1.5-pro-latest',
+    ];
+
     const parts = [{ text: promptText }];
     if (base64ImageData && mimeType) {
         parts.push({ inlineData: { mimeType, data: base64ImageData } });
     }
 
-    try {
-        const resp = await fetch(endpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts }] })
-        });
-        const json = await resp.json();
-        if (json.error) {
-            showToast(`Gemini error: ${json.error.message}`, "error");
-            return null;
+    for (const model of modelCandidates) {
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`;
+        try {
+            const resp = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents: [{ parts }] })
+            });
+            const json = await resp.json();
+            if (json.error) {
+                // Model not found or not supported — try next one
+                const errCode = json.error.code || 0;
+                const errMsg = json.error.message || '';
+                if (errCode === 404 || errMsg.includes('not found') || errMsg.includes('not supported')) {
+                    console.warn(`Model ${model} tidak tersedia, mencoba model berikutnya...`);
+                    continue;
+                }
+                // Auth or quota error — no point retrying other models
+                if (errCode === 400 || errCode === 401 || errCode === 403 || errCode === 429) {
+                    const friendlyMsg = errCode === 429
+                        ? 'Batas kuota Gemini API tercapai. Coba lagi sebentar.'
+                        : errCode === 403
+                        ? 'Gemini API Key tidak valid. Cek kembali di Pengaturan.'
+                        : `Gemini error (${errCode}): Periksa kembali API Key Anda.`;
+                    showToast(friendlyMsg, 'error');
+                    return null;
+                }
+                console.error(`Gemini error (model=${model}):`, json.error);
+                continue;
+            }
+            const result = json.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (result) return result;
+            continue;
+        } catch (err) {
+            console.error(`Fetch error (model=${model}):`, err.message);
+            continue;
         }
-        return json.candidates?.[0]?.content?.parts?.[0]?.text || null;
-    } catch (err) {
-        showToast(`Koneksi Gemini gagal: ${err.message}`, "error");
-        return null;
     }
+
+    showToast('Semua model Gemini tidak tersedia saat ini. Coba beberapa saat lagi.', 'error');
+    return null;
 }
 
 async function parseTransactionWithGemini(transcript) {
