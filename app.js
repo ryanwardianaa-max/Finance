@@ -14,8 +14,8 @@
  *   Nilai tersebut akan tersimpan aman di browser LocalStorage Anda secara mandiri.
  */
 
-const DEFAULT_SUPABASE_URL = ""; // Masukkan Supabase Project URL Anda
-const DEFAULT_SUPABASE_ANON_KEY = ""; // Masukkan Supabase Anon Key Anda
+const DEFAULT_SUPABASE_URL = "https://wdilryxahcylzosahdof.supabase.co"; // Masukkan Supabase Project URL Anda
+const DEFAULT_SUPABASE_ANON_KEY = "sb_publishable_wK3CwI-qTtJoY8ilQOw2xg_RL89GQcK"; // Masukkan Supabase Anon Key Anda
 const DEFAULT_GEMINI_API_KEY = ""; // Masukkan API Key Gemini default Anda
 
 // Instans Supabase Client (Diubah ke supabaseClient untuk menghindari tabrakan nama dengan library global window.supabase)
