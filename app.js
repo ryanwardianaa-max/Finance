@@ -41,6 +41,14 @@ window.onload = function() {
 };
 
 function initApp() {
+    // Inisialisasi Tema (Default ke Dark Mode)
+    const savedTheme = localStorage.getItem('theme') || 'dark';
+    if (savedTheme === 'dark') {
+        document.documentElement.classList.add('dark');
+    } else {
+        document.documentElement.classList.remove('dark');
+    }
+
     // Muat kredensial dari LocalStorage atau fallback default
     const savedSupaUrl = localStorage.getItem('supabase_url') || DEFAULT_SUPABASE_URL;
     const savedSupaKey = localStorage.getItem('supabase_anon_key') || DEFAULT_SUPABASE_ANON_KEY;
@@ -160,10 +168,20 @@ function setupEventListeners() {
         renderCharts();
     });
 
+    // Toggle Tema (Desktop & Mobile)
+    const btnTheme = document.getElementById('btn-theme-toggle');
+    const btnMobTheme = document.getElementById('btn-mobile-theme-toggle');
+    if (btnTheme) btnTheme.addEventListener('click', toggleTheme);
+    if (btnMobTheme) btnMobTheme.addEventListener('click', toggleTheme);
+
     // Input nominal keyboard listener
     const inputAmt = document.getElementById('input-amount');
     inputAmt.addEventListener('input', function(e) {
-        calcExpression = e.target.value;
+        // Hilangkan titik terlebih dahulu untuk menyimpan nilai asli
+        const rawVal = e.target.value.replace(/\./g, '');
+        calcExpression = rawVal;
+        // Format kembali tampilan dengan titik
+        e.target.value = formatExpressionDisplay(rawVal);
     });
     inputAmt.addEventListener('keydown', function(e) {
         if (e.key === 'Enter') {
@@ -218,6 +236,33 @@ function saveApiSettings() {
     if (currentUser) {
         loadData();
     }
+}
+
+// Toggle Theme (Light vs Dark Mode)
+function toggleTheme() {
+    if (document.documentElement.classList.contains('dark')) {
+        document.documentElement.classList.remove('dark');
+        localStorage.setItem('theme', 'light');
+    } else {
+        document.documentElement.classList.add('dark');
+        localStorage.setItem('theme', 'dark');
+    }
+}
+
+// Format math expressions with dots for thousands display (e.g. 100.000 + 5.000)
+function formatExpressionDisplay(expr) {
+    if (!expr) return '0';
+    return expr.toString().replace(/\d+/g, (match) => {
+        return match.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    });
+}
+
+// Format a raw number with dots for thousands
+function formatNumberWithDots(num) {
+    if (!num && num !== 0) return '';
+    const parts = num.toString().split('.');
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    return parts.join(',');
 }
 
 // Toggle login & register forms
@@ -394,14 +439,43 @@ function showDashboard() {
     document.getElementById('dashboard-screen').classList.remove('hidden');
 
     // Perbarui Profile Widget (Desktop & Mobile)
-    const profilePic = currentUser.picture || 'https://via.placeholder.com/150';
-    document.getElementById('user-avatar').src = profilePic;
+    const profilePic = currentUser.picture;
+    const initial = (currentUser.name || currentUser.email || 'U').charAt(0).toUpperCase();
+
+    const desktopImg = document.getElementById('user-avatar');
+    const desktopInitial = document.getElementById('user-avatar-initial');
     document.getElementById('user-name').innerText = currentUser.name;
-    
-    const mobAvatar = document.getElementById('mobile-user-avatar');
+
+    if (profilePic && profilePic !== 'https://via.placeholder.com/150') {
+        desktopImg.src = profilePic;
+        desktopImg.classList.remove('hidden');
+        if (desktopInitial) desktopInitial.classList.add('hidden');
+    } else {
+        desktopImg.classList.add('hidden');
+        if (desktopInitial) {
+            desktopInitial.innerText = initial;
+            desktopInitial.classList.remove('hidden');
+        }
+    }
+
+    const mobImg = document.getElementById('mobile-user-avatar');
+    const mobInitial = document.getElementById('mobile-user-avatar-initial');
     const mobName = document.getElementById('mobile-user-name');
-    if (mobAvatar) mobAvatar.src = profilePic;
     if (mobName) mobName.innerText = currentUser.name;
+
+    if (profilePic && profilePic !== 'https://via.placeholder.com/150') {
+        if (mobImg) {
+            mobImg.src = profilePic;
+            mobImg.classList.remove('hidden');
+        }
+        if (mobInitial) mobInitial.classList.add('hidden');
+    } else {
+        if (mobImg) mobImg.classList.add('hidden');
+        if (mobInitial) {
+            mobInitial.innerText = initial;
+            mobInitial.classList.remove('hidden');
+        }
+    }
 
     // Reset Form Input Tanggal ke Tanggal Hari Ini
     document.getElementById('input-date').value = new Date().toISOString().substring(0, 10);
@@ -934,23 +1008,25 @@ function pressCalc(val) {
         amountField.value = '0';
     } else if (val === 'DEL') {
         calcExpression = calcExpression.toString().slice(0, -1);
-        amountField.value = calcExpression || '0';
+        amountField.value = formatExpressionDisplay(calcExpression) || '0';
     } else if (val === '=') {
         if (!calcExpression) return;
         const result = evaluateExpression(calcExpression);
-        amountField.value = result;
+        amountField.value = formatNumberWithDots(result);
         calcExpression = result.toString();
     } else {
-        if (amountField.value === '0' && !isNaN(val)) {
+        if (calcExpression === '' && !isNaN(val)) {
             calcExpression = val;
         } else {
             calcExpression += val;
         }
-        amountField.value = calcExpression;
+        amountField.value = formatExpressionDisplay(calcExpression);
     }
 }
 
 function evaluateExpression(str) {
+    // Hilangkan titik ribuan terlebih dahulu agar bisa dievaluasi
+    str = str.replace(/\./g, '');
     str = str.replace(/×/g, '*').replace(/÷/g, '/');
     const sanitized = str.replace(/[^0-9+\-*/().]/g, '');
     try {
@@ -992,13 +1068,19 @@ async function queryGemini(promptText, base64ImageData = null, mimeType = null) 
             body: JSON.stringify(payload)
         });
         const data = await response.json();
-        if (data.candidates && data.candidates[0].content.parts[0].text) {
+        if (data.error) {
+            console.error("Gemini API Error details:", data.error);
+            showToast(`Gemini API Error: ${data.error.message}`, "error");
+            return null;
+        }
+        if (data.candidates && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0].text) {
             return data.candidates[0].content.parts[0].text;
         } else {
-            throw new Error("Respon tidak valid");
+            throw new Error("Respon kosong atau format tidak sesuai");
         }
     } catch (error) {
-        console.error("Gemini API Error:", error);
+        console.error("Gemini API Request Error:", error);
+        showToast(`Gemini Gagal: ${error.message}`, "error");
         return null;
     }
 }
@@ -1185,7 +1267,8 @@ function clearOCRPreview() {
 
 // Mengirimkan Transaksi baru ke Supabase
 async function submitTransaction() {
-    const amountVal = parseInt(document.getElementById('input-amount').value) || 0;
+    const amountRaw = document.getElementById('input-amount').value.replace(/\./g, '');
+    const amountVal = parseInt(amountRaw) || 0;
     const category = document.getElementById('input-category').value;
     const date = document.getElementById('input-date').value;
     const description = document.getElementById('input-description').value.trim() || 'Tanpa keterangan';

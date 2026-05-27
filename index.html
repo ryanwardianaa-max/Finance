@@ -55,10 +55,56 @@
 
     <style>
         body {
-            background-color: #090d16;
+            background-color: #f8fafc;
+            color: #1e293b;
             overflow-x: hidden;
             -webkit-tap-highlight-color: transparent;
+            transition: background-color 0.3s ease, color 0.3s ease;
         }
+        .dark body {
+            background-color: #090d16;
+            color: #f1f5f9;
+        }
+        
+        /* Override Tailwind utility classes to adapt to light/dark themes */
+        .bg-glassBg {
+            background-color: rgba(255, 255, 255, 0.8) !important;
+            transition: background-color 0.3s ease;
+        }
+        .dark .bg-glassBg {
+            background-color: rgba(15, 23, 42, 0.45) !important;
+        }
+        .border-glassBorder {
+            border-color: rgba(15, 23, 42, 0.08) !important;
+            transition: border-color 0.3s ease;
+        }
+        .dark .border-glassBorder {
+            border-color: rgba(255, 255, 255, 0.08) !important;
+        }
+        
+        /* Text Color Adaptations */
+        .text-slate-100 {
+            color: #1e293b !important;
+            transition: color 0.3s ease;
+        }
+        .dark .text-slate-100 {
+            color: #f1f5f9 !important;
+        }
+        .text-white {
+            color: #0f172a !important;
+            transition: color 0.3s ease;
+        }
+        .dark .text-white {
+            color: #ffffff !important;
+        }
+        .text-slate-400 {
+            color: #64748b !important;
+            transition: color 0.3s ease;
+        }
+        .dark .text-slate-400 {
+            color: #94a3b8 !important;
+        }
+        
         /* Custom scrollbar */
         ::-webkit-scrollbar {
             width: 6px;
@@ -95,7 +141,7 @@
         }
     </style>
 </head>
-<body class="text-slate-100 font-sans min-h-screen relative antialiased pb-12">
+<body class="font-sans min-h-screen relative antialiased pb-12">
 
     <!-- Background Orbs -->
     <div class="fixed top-[-10%] left-[-10%] w-[50%] h-[50%] bg-purple-900/20 rounded-full blur-[120px] pointer-events-none z-0"></div>
@@ -192,7 +238,13 @@
                 </div>
 
                 <!-- Profile and Navigation Controls -->
-                <div class="flex items-center space-x-4">
+                <div class="flex items-center space-x-3">
+                    <!-- Theme Toggle Button -->
+                    <button id="btn-theme-toggle" class="bg-slate-800/80 hover:bg-slate-700/80 border border-glassBorder/40 text-slate-200 p-2.5 rounded-xl transition duration-150 flex items-center justify-center active:scale-95 transition-transform" title="Ubah Tema">
+                        <i class="fa-solid fa-moon text-indigo-400 dark:hidden"></i>
+                        <i class="fa-solid fa-sun hidden dark:inline-block text-yellow-400"></i>
+                    </button>
+
                     <!-- QR Web Sync Toggle -->
                     <button id="btn-qr-sync" class="bg-slate-800/80 hover:bg-slate-700/80 border border-glassBorder text-slate-200 p-2.5 rounded-xl transition duration-150 flex items-center space-x-2 text-sm font-semibold shadow-md active:scale-95 transition-transform" title="Sinkronisasi Perangkat">
                         <i class="fa-solid fa-qrcode text-brandPurple"></i>
@@ -201,7 +253,10 @@
 
                     <!-- User Profile Info -->
                     <div class="flex items-center space-x-2 bg-slate-800/50 pl-2 pr-3 py-1.5 rounded-xl border border-glassBorder">
-                        <img id="user-avatar" src="https://via.placeholder.com/150" alt="Avatar" class="w-7 h-7 rounded-full border border-brandPurple">
+                        <div class="relative w-7 h-7 rounded-full border border-brandPurple flex items-center justify-center overflow-hidden bg-gradient-to-tr from-brandPurple to-indigo-600 shadow-neon-purple shrink-0">
+                            <img id="user-avatar" src="" alt="Avatar" class="w-full h-full object-cover hidden">
+                            <span id="user-avatar-initial" class="text-[10px] font-extrabold text-white uppercase select-none animate-pulse">U</span>
+                        </div>
                         <span id="user-name" class="text-xs font-semibold text-slate-300 max-w-[100px] truncate">Pengguna</span>
                     </div>
 
@@ -218,15 +273,25 @@
                 <!-- Mobile User Info Header (Mobile Only) -->
                 <div class="flex md:hidden items-center justify-between bg-glassBg border border-glassBorder backdrop-blur-md rounded-2xl p-4 shadow-glass">
                     <div class="flex items-center space-x-3">
-                        <img id="mobile-user-avatar" src="https://via.placeholder.com/150" alt="Avatar" class="w-9 h-9 rounded-full border border-brandPurple">
+                        <div class="relative w-9 h-9 rounded-full border border-brandPurple flex items-center justify-center overflow-hidden bg-gradient-to-tr from-brandPurple to-indigo-600 shadow-neon-purple shrink-0">
+                            <img id="mobile-user-avatar" src="" alt="Avatar" class="w-full h-full object-cover hidden">
+                            <span id="mobile-user-avatar-initial" class="text-xs font-extrabold text-white uppercase select-none animate-pulse">U</span>
+                        </div>
                         <div>
                             <span class="block text-[10px] text-slate-400">Selamat datang,</span>
                             <span id="mobile-user-name" class="block text-xs font-bold text-slate-200">Pengguna</span>
                         </div>
                     </div>
-                    <button id="btn-mobile-logout" class="bg-brandCoral/10 hover:bg-brandCoral/20 text-brandCoral border border-brandCoral/20 px-3.5 py-2 rounded-xl text-xs font-bold active:scale-95 transition-transform">
-                        <i class="fa-solid fa-arrow-right-from-bracket mr-1"></i> Keluar
-                    </button>
+                    <div class="flex items-center space-x-2">
+                        <!-- Theme Toggle Button Mobile -->
+                        <button id="btn-mobile-theme-toggle" class="bg-slate-800/80 hover:bg-slate-700/80 border border-glassBorder/40 text-slate-200 p-2.5 rounded-xl transition duration-150 flex items-center justify-center active:scale-95 transition-transform">
+                            <i class="fa-solid fa-moon text-indigo-400 dark:hidden"></i>
+                            <i class="fa-solid fa-sun hidden dark:inline-block text-yellow-400"></i>
+                        </button>
+                        <button id="btn-mobile-logout" class="bg-brandCoral/10 hover:bg-brandCoral/20 text-brandCoral border border-brandCoral/20 px-3.5 py-2 rounded-xl text-xs font-bold active:scale-95 transition-transform">
+                            <i class="fa-solid fa-arrow-right-from-bracket mr-1"></i> Keluar
+                        </button>
+                    </div>
                 </div>
 
                 <!-- SECTION 1: DASHBOARD VIEW (Stats & Charts) -->
@@ -419,7 +484,7 @@
 
             <!-- Developer Credits Footer -->
             <footer class="w-full text-center py-6 border-t border-glassBorder/40 text-slate-500 text-xs mt-8 pb-24 md:pb-6">
-                <p>&copy; 2026 Librayn Finance. Dibuat dengan <i class="fa-solid fa-heart text-brandCoral animate-pulse"></i> oleh <strong>ryanwardianaa-max</strong></p>
+                <p>&copy; 2026 Librayn Finance. Pembuat: <strong>ryanwardiana</strong></p>
             </footer>
 
             <!-- FLOATING ACTION BUTTON (FAB) - Mobile Only -->
