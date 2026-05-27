@@ -115,9 +115,6 @@ function setupEventListeners() {
     document.getElementById('form-login').addEventListener('submit', loginWithEmail);
     document.getElementById('form-register').addEventListener('submit', registerWithEmail);
 
-    // Mode Google Sign-in Supabase Auth
-    document.getElementById('btn-google-login').addEventListener('click', loginWithGoogle);
-
     // Mode Demo
     document.getElementById('btn-demo-mode').addEventListener('click', loginAsDemo);
 
@@ -358,7 +355,7 @@ async function loginWithGoogle() {
 function loginAsDemo() {
     currentUser = {
         id: "demo-user-uuid-12345",
-        email: "demo.user@aura.local",
+        email: "demo.user@librayn.local",
         name: "Demo User (Uji Coba)",
         picture: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200"
     };

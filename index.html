@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Aura Finance - Dashboard Keuangan Pintar</title>
+    <title>Librayn Finance - Dashboard Keuangan Pintar</title>
     
     <!-- Google Fonts: Plus Jakarta Sans -->
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -118,7 +118,7 @@
                     <div class="w-16 h-16 bg-gradient-to-tr from-brandPurple to-indigo-500 rounded-2xl flex items-center justify-center shadow-neon-purple mb-4 transform hover:rotate-12 transition-transform duration-300">
                         <i class="fa-solid fa-wallet text-2xl text-white"></i>
                     </div>
-                    <h1 class="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-white via-indigo-200 to-brandPurple bg-clip-text text-transparent">Aura Finance</h1>
+                    <h1 class="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-white via-indigo-200 to-brandPurple bg-clip-text text-transparent">Librayn Finance</h1>
                     <p class="text-slate-400 text-sm mt-2">Kelola keuangan cerdas dengan integrasi AI & Supabase Database</p>
                 </div>
 
@@ -168,12 +168,6 @@
                     <hr class="w-full border-slate-800">
                 </div>
 
-                <!-- Google OAuth Login button for Supabase Auth -->
-                <button id="btn-google-login" class="w-full min-h-[48px] py-3 px-4 bg-white hover:bg-slate-50 text-slate-900 border border-slate-200 rounded-xl flex items-center justify-center font-bold text-sm shadow-md active:scale-[0.98] transition-transform duration-100 mb-4">
-                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google Logo" class="w-5 h-5 mr-3">
-                    Masuk dengan Google
-                </button>
-
                 <!-- Demo Access (For trial without setting up Supabase Project keys) -->
                 <button id="btn-demo-mode" class="w-full min-h-[48px] py-3 px-4 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 border border-slate-700 text-slate-200 rounded-xl transition duration-200 flex items-center justify-center font-semibold text-sm active:scale-[0.98] transition-transform duration-100">
                     <i class="fa-solid fa-flask mr-2 text-indigo-400"></i> Masuk Mode Demo (Uji Coba)
@@ -194,7 +188,7 @@
                     <div class="w-10 h-10 bg-gradient-to-tr from-brandPurple to-indigo-500 rounded-xl flex items-center justify-center shadow-neon-purple">
                         <i class="fa-solid fa-wallet text-lg text-white"></i>
                     </div>
-                    <span class="text-xl font-bold bg-gradient-to-r from-white to-indigo-300 bg-clip-text text-transparent hidden sm:inline-block">Aura Finance</span>
+                    <span class="text-xl font-bold bg-gradient-to-r from-white to-indigo-300 bg-clip-text text-transparent hidden sm:inline-block">Librayn Finance</span>
                 </div>
 
                 <!-- Profile and Navigation Controls -->
@@ -422,29 +416,34 @@
                 </div>
 
             </main>
+
+            <!-- Developer Credits Footer -->
+            <footer class="w-full text-center py-6 border-t border-glassBorder/40 text-slate-500 text-xs mt-8 pb-24 md:pb-6">
+                <p>&copy; 2026 Librayn Finance. Dibuat dengan <i class="fa-solid fa-heart text-brandCoral animate-pulse"></i> oleh <strong>ryanwardianaa-max</strong></p>
+            </footer>
+
+            <!-- FLOATING ACTION BUTTON (FAB) - Mobile Only -->
+            <button id="btn-mobile-fab" class="fixed bottom-20 right-5 z-30 w-14 h-14 rounded-full bg-gradient-to-tr from-brandPurple to-indigo-600 text-white flex items-center justify-center shadow-neon-purple active:scale-95 transition-transform duration-100 md:hidden" onclick="openInputModal()">
+                <i class="fa-solid fa-plus text-xl"></i>
+            </button>
+
+            <!-- BOTTOM NAVIGATION BAR - Mobile Only (Glassmorphism effect) -->
+            <div class="fixed bottom-0 left-0 right-0 z-30 h-16 bg-glassBg border-t border-glassBorder backdrop-blur-md flex md:hidden items-center justify-around px-4 shadow-glass">
+                <button id="btn-nav-dashboard" class="flex flex-col items-center justify-center flex-1 h-full text-brandPurple active:scale-95 transition-transform duration-100" onclick="switchMobileTab('dashboard')">
+                    <i class="fa-solid fa-chart-simple text-lg"></i>
+                    <span class="text-[10px] font-semibold mt-1">Dashboard</span>
+                </button>
+                <button id="btn-nav-transactions" class="flex flex-col items-center justify-center flex-1 h-full text-slate-400 active:scale-95 transition-transform duration-100" onclick="switchMobileTab('transactions')">
+                    <i class="fa-solid fa-receipt text-lg"></i>
+                    <span class="text-[10px] font-semibold mt-1">Transaksi</span>
+                </button>
+                <button id="btn-nav-qr" class="flex flex-col items-center justify-center flex-1 h-full text-slate-400 active:scale-95 transition-transform duration-100" onclick="openQrModal()">
+                    <i class="fa-solid fa-qrcode text-lg"></i>
+                    <span class="text-[10px] font-semibold mt-1">QR Sync</span>
+                </button>
+            </div>
         </div>
 
-    </div>
-
-    <!-- FLOATING ACTION BUTTON (FAB) - Mobile Only -->
-    <button id="btn-mobile-fab" class="fixed bottom-20 right-5 z-30 w-14 h-14 rounded-full bg-gradient-to-tr from-brandPurple to-indigo-600 text-white flex items-center justify-center shadow-neon-purple active:scale-95 transition-transform duration-100 md:hidden" onclick="openInputModal()">
-        <i class="fa-solid fa-plus text-xl"></i>
-    </button>
-
-    <!-- BOTTOM NAVIGATION BAR - Mobile Only (Glassmorphism effect) -->
-    <div class="fixed bottom-0 left-0 right-0 z-30 h-16 bg-glassBg border-t border-glassBorder backdrop-blur-md flex md:hidden items-center justify-around px-4 shadow-glass">
-        <button id="btn-nav-dashboard" class="flex flex-col items-center justify-center flex-1 h-full text-brandPurple active:scale-95 transition-transform duration-100" onclick="switchMobileTab('dashboard')">
-            <i class="fa-solid fa-chart-simple text-lg"></i>
-            <span class="text-[10px] font-semibold mt-1">Dashboard</span>
-        </button>
-        <button id="btn-nav-transactions" class="flex flex-col items-center justify-center flex-1 h-full text-slate-400 active:scale-95 transition-transform duration-100" onclick="switchMobileTab('transactions')">
-            <i class="fa-solid fa-receipt text-lg"></i>
-            <span class="text-[10px] font-semibold mt-1">Transaksi</span>
-        </button>
-        <button id="btn-nav-qr" class="flex flex-col items-center justify-center flex-1 h-full text-slate-400 active:scale-95 transition-transform duration-100" onclick="openQrModal()">
-            <i class="fa-solid fa-qrcode text-lg"></i>
-            <span class="text-[10px] font-semibold mt-1">QR Sync</span>
-        </button>
     </div>
 
     <!-- MODAL 1: ULTIMATE INPUT SYSTEM (Responsive: Center dialog on desktop, Bottom-sheet on mobile) -->

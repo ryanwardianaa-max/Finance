@@ -48,7 +48,7 @@ const server = http.createServer((req, res) => {
 server.listen(PORT, 'localhost', () => {
     const url = `http://localhost:${PORT}`;
     console.log(`\n==================================================`);
-    console.log(`  Aura Finance Server berjalan di: ${url}`);
+    console.log(`  Librayn Finance Server berjalan di: ${url}`);
     console.log(`  Tekan Ctrl+C untuk menghentikan server.`);
     console.log(`==================================================\n`);
 
