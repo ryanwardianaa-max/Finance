@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Aura Finance - Dashboard Keuangan Pintar</title>
+    
+    <!-- Google Fonts: Plus Jakarta Sans -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- HTML5-QRCode Scanner CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/html5-qrcode/html5-qrcode.min.js"></script>
+    
+    <!-- QRCode.js CDN (Generating QR Codes) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+    <!-- Supabase JS Client Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+                    },
+                    colors: {
+                        darkBg: '#090d16',
+                        glassBg: 'rgba(15, 23, 42, 0.45)',
+                        glassBorder: 'rgba(255, 255, 255, 0.08)',
+                        brandPurple: '#8b5cf6',
+                        brandTeal: '#0d9488',
+                        brandCoral: '#f43f5e',
+                    },
+                    boxShadow: {
+                        'neon-purple': '0 0 15px rgba(139, 92, 246, 0.35)',
+                        'neon-teal': '0 0 15px rgba(13, 148, 136, 0.35)',
+                        'neon-coral': '0 0 15px rgba(244, 63, 94, 0.35)',
+                        'glass': '0 8px 32px 0 rgba(0, 0, 0, 0.37)',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #090d16;
+            overflow-x: hidden;
+            -webkit-tap-highlight-color: transparent;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.1);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(139, 92, 246, 0.3);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(139, 92, 246, 0.6);
+        }
+        .backdrop-blur-md {
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+        /* Pulsing voice effect */
+        @keyframes ripple {
+            0% { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.4), 0 0 0 10px rgba(139, 92, 246, 0.2); }
+            100% { box-shadow: 0 0 0 15px rgba(139, 92, 246, 0), 0 0 0 30px rgba(139, 92, 246, 0); }
+        }
+        .recording-active {
+            animation: ripple 1.2s infinite;
+            background-color: #f43f5e !important;
+        }
+        
+        /* Disable text selection on interactive elements */
+        button, select, input, label {
+            user-select: none;
+            -webkit-user-select: none;
+        }
+    </style>
+</head>
+<body class="text-slate-100 font-sans min-h-screen relative antialiased pb-12">
+
+    <!-- Background Orbs -->
+    <div class="fixed top-[-10%] left-[-10%] w-[50%] h-[50%] bg-purple-900/20 rounded-full blur-[120px] pointer-events-none z-0"></div>
+    <div class="fixed bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-teal-900/20 rounded-full blur-[120px] pointer-events-none z-0"></div>
+    
+    <!-- TOAST NOTIFICATION CONTAINER -->
+    <div id="toast-container" class="fixed top-5 right-5 z-50 flex flex-col gap-3 max-w-sm pointer-events-none"></div>
+
+    <!-- MAIN APP WRAPPER -->
+    <div class="relative z-10 min-h-screen flex flex-col">
+
+        <!-- 1. LOGIN SCREEN -->
+        <div id="login-screen" class="flex-1 flex items-center justify-center p-4">
+            <div class="w-full max-w-md bg-glassBg border border-glassBorder backdrop-blur-md rounded-3xl p-8 shadow-glass flex flex-col items-center relative overflow-hidden">
+                <div class="absolute -top-10 -right-10 w-24 h-24 bg-brandPurple/20 rounded-full blur-xl"></div>
+                <div class="absolute -bottom-10 -left-10 w-24 h-24 bg-brandTeal/20 rounded-full blur-xl"></div>
+
+                <!-- App Logo & Title -->
+                <div class="mb-8 text-center flex flex-col items-center">
+                    <div class="w-16 h-16 bg-gradient-to-tr from-brandPurple to-indigo-500 rounded-2xl flex items-center justify-center shadow-neon-purple mb-4 transform hover:rotate-12 transition-transform duration-300">
+                        <i class="fa-solid fa-wallet text-2xl text-white"></i>
+                    </div>
+                    <h1 class="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-white via-indigo-200 to-brandPurple bg-clip-text text-transparent">Aura Finance</h1>
+                    <p class="text-slate-400 text-sm mt-2">Kelola keuangan cerdas dengan integrasi AI & Supabase Database</p>
+                </div>
+
+                <!-- Google OAuth Login button for Supabase Auth -->
+                <button id="btn-google-login" class="w-full min-h-[48px] py-3 px-4 bg-white hover:bg-slate-50 text-slate-900 border border-slate-200 rounded-xl flex items-center justify-center font-bold text-sm shadow-md active:scale-[0.98] transition-transform duration-100 mb-6">
+                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google Logo" class="w-5 h-5 mr-3">
+                    Masuk dengan Google
+                </button>
+
+                <div class="w-full flex items-center justify-between my-4 text-xs text-slate-500">
+                    <hr class="w-full border-slate-800">
+                    <span class="px-3 whitespace-nowrap">Atau</span>
+                    <hr class="w-full border-slate-800">
+                </div>
+
+                <!-- Demo Access (For trial without setting up Supabase Project keys) -->
+                <button id="btn-demo-mode" class="w-full min-h-[48px] py-3 px-4 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 border border-slate-700 text-slate-200 rounded-xl transition duration-200 flex items-center justify-center font-semibold text-sm active:scale-[0.98] transition-transform duration-100">
+                    <i class="fa-solid fa-flask mr-2 text-indigo-400"></i> Masuk Mode Demo (Uji Coba)
+                </button>
+
+                <p class="text-xs text-slate-500 text-center mt-8 px-4 leading-relaxed">
+                    Dengan masuk, data Anda akan disimpan di database PostgreSQL Supabase Anda secara aman.
+                </p>
+            </div>
+        </div>
+
+        <!-- 2. MAIN DASHBOARD SCREEN (Hidden by default) -->
+        <div id="dashboard-screen" class="hidden flex-1 flex flex-col">
+            
+            <!-- Traditional Navbar (Desktop Only) -->
+            <header class="hidden md:flex w-full bg-glassBg/40 border-b border-glassBorder backdrop-blur-md sticky top-0 z-30 px-4 md:px-8 py-4 items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-gradient-to-tr from-brandPurple to-indigo-500 rounded-xl flex items-center justify-center shadow-neon-purple">
+                        <i class="fa-solid fa-wallet text-lg text-white"></i>
+                    </div>
+                    <span class="text-xl font-bold bg-gradient-to-r from-white to-indigo-300 bg-clip-text text-transparent hidden sm:inline-block">Aura Finance</span>
+                </div>
+
+                <!-- Profile and Navigation Controls -->
+                <div class="flex items-center space-x-4">
+                    <!-- QR Web Sync Toggle -->
+                    <button id="btn-qr-sync" class="bg-slate-800/80 hover:bg-slate-700/80 border border-glassBorder text-slate-200 p-2.5 rounded-xl transition duration-150 flex items-center space-x-2 text-sm font-semibold shadow-md active:scale-95 transition-transform" title="Sinkronisasi Perangkat">
+                        <i class="fa-solid fa-qrcode text-brandPurple"></i>
+                        <span>Sync Device</span>
+                    </button>
+
+                    <!-- User Profile Info -->
+                    <div class="flex items-center space-x-2 bg-slate-800/50 pl-2 pr-3 py-1.5 rounded-xl border border-glassBorder">
+                        <img id="user-avatar" src="https://via.placeholder.com/150" alt="Avatar" class="w-7 h-7 rounded-full border border-brandPurple">
+                        <span id="user-name" class="text-xs font-semibold text-slate-300 max-w-[100px] truncate">Pengguna</span>
+                    </div>
+
+                    <!-- Logout Button -->
+                    <button id="btn-logout" class="bg-brandCoral/10 hover:bg-brandCoral/20 text-brandCoral border border-brandCoral/20 p-2.5 rounded-xl transition duration-150 active:scale-95 transition-transform" title="Keluar">
+                        <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Main Content Container -->
+            <main class="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 lg:p-8 space-y-6 pb-28 md:pb-8">
+
+                <!-- Mobile User Info Header (Mobile Only) -->
+                <div class="flex md:hidden items-center justify-between bg-glassBg border border-glassBorder backdrop-blur-md rounded-2xl p-4 shadow-glass">
+                    <div class="flex items-center space-x-3">
+                        <img id="mobile-user-avatar" src="https://via.placeholder.com/150" alt="Avatar" class="w-9 h-9 rounded-full border border-brandPurple">
+                        <div>
+                            <span class="block text-[10px] text-slate-400">Selamat datang,</span>
+                            <span id="mobile-user-name" class="block text-xs font-bold text-slate-200">Pengguna</span>
+                        </div>
+                    </div>
+                    <button id="btn-mobile-logout" class="bg-brandCoral/10 hover:bg-brandCoral/20 text-brandCoral border border-brandCoral/20 px-3.5 py-2 rounded-xl text-xs font-bold active:scale-95 transition-transform">
+                        <i class="fa-solid fa-arrow-right-from-bracket mr-1"></i> Keluar
+                    </button>
+                </div>
+
+                <!-- SECTION 1: DASHBOARD VIEW (Stats & Charts) -->
+                <div id="section-dashboard" class="space-y-6">
+                    <!-- Stats Overview Row -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        
+                        <!-- Total Balance Card -->
+                        <div class="bg-glassBg border border-glassBorder backdrop-blur-md rounded-2xl p-6 shadow-glass relative overflow-hidden group hover:scale-[1.01] transition-all duration-200">
+                            <div class="absolute -right-4 -bottom-4 w-24 h-24 bg-brandPurple/10 rounded-full blur-2xl group-hover:bg-brandPurple/20 transition-all duration-300"></div>
+                            <div class="flex items-center justify-between mb-4">
+                                <span class="text-slate-400 text-xs font-semibold uppercase tracking-wider">Total Saldo</span>
+                                <div class="w-9 h-9 bg-brandPurple/10 text-brandPurple rounded-lg flex items-center justify-center">
+                                    <i class="fa-solid fa-scale-balanced"></i>
+                                </div>
+                            </div>
+                            <h3 id="stat-total-balance" class="text-2xl font-bold tracking-tight text-white mb-1">Rp 0</h3>
+                            <p class="text-slate-500 text-xs flex items-center">
+                                <i class="fa-solid fa-circle-check text-brandTeal mr-1"></i> Terhubung Supabase
+                            </p>
+                        </div>
+
+                        <!-- Active Income Card -->
+                        <div class="bg-glassBg border border-glassBorder backdrop-blur-md rounded-2xl p-6 shadow-glass relative overflow-hidden group hover:scale-[1.01] transition-all duration-200">
+                            <div class="absolute -right-4 -bottom-4 w-24 h-24 bg-brandTeal/10 rounded-full blur-2xl group-hover:bg-brandTeal/20 transition-all duration-300"></div>
+                            <div class="flex items-center justify-between mb-4">
+                                <span class="text-slate-400 text-xs font-semibold uppercase tracking-wider">Total Pemasukan</span>
+                                <div class="w-9 h-9 bg-brandTeal/10 text-brandTeal rounded-lg flex items-center justify-center">
+                                    <i class="fa-solid fa-arrow-down-long"></i>
+                                </div>
+                            </div>
+                            <h3 id="stat-total-income" class="text-2xl font-bold tracking-tight text-brandTeal mb-1">Rp 0</h3>
+                            <p id="stat-income-desc" class="text-slate-500 text-xs truncate">Bulan ini</p>
+                        </div>
+
+                        <!-- Active Expenses Card -->
+                        <div class="bg-glassBg border border-glassBorder backdrop-blur-md rounded-2xl p-6 shadow-glass relative overflow-hidden group hover:scale-[1.01] transition-all duration-200">
+                            <div class="absolute -right-4 -bottom-4 w-24 h-24 bg-brandCoral/10 rounded-full blur-2xl group-hover:bg-brandCoral/20 transition-all duration-300"></div>
+                            <div class="flex items-center justify-between mb-4">
+                                <span class="text-slate-400 text-xs font-semibold uppercase tracking-wider">Total Pengeluaran</span>
+                                <div class="w-9 h-9 bg-brandCoral/10 text-brandCoral rounded-lg flex items-center justify-center">
+                                    <i class="fa-solid fa-arrow-up-long"></i>
+                                </div>
+                            </div>
+                            <h3 id="stat-total-expense" class="text-2xl font-bold tracking-tight text-brandCoral mb-1">Rp 0</h3>
+                            <p id="stat-expense-desc" class="text-slate-500 text-xs truncate">Bulan ini</p>
+                        </div>
+
+                    </div>
+
+                    <!-- Charts Section Grid -->
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <!-- Line Chart (Cashflow Trend) -->
+                        <div class="bg-glassBg border border-glassBorder backdrop-blur-md rounded-2xl p-5 shadow-glass lg:col-span-2 flex flex-col">
+                            <div class="flex items-center justify-between mb-4">
+                                <div>
+                                    <h4 class="text-md font-bold text-slate-100">Tren Arus Kas</h4>
+                                    <p class="text-slate-400 text-xs">Pemasukan vs Pengeluaran</p>
+                                </div>
+                                <div class="flex space-x-2">
+                                    <select id="chart-filter" class="bg-slate-800 border border-slate-700 text-slate-300 text-xs rounded-xl px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-brandPurple">
+                                        <option value="7">7 Hari</option>
+                                        <option value="30" selected>30 Hari</option>
+                                        <option value="90">90 Hari</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <!-- Responsive Canvas Container -->
+                            <div class="relative w-full h-64">
+                                <canvas id="cashflowChart"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Doughnut Chart (Categories Breakdowns) -->
+                        <div class="bg-glassBg border border-glassBorder backdrop-blur-md rounded-2xl p-5 shadow-glass flex flex-col">
+                            <h4 class="text-md font-bold text-slate-100 mb-1">Kategori Pengeluaran</h4>
+                            <p class="text-slate-400 text-xs mb-4">Persentase pengeluaran aktif</p>
+                            <!-- Responsive Canvas Container -->
+                            <div class="relative w-full h-64 flex items-center justify-center">
+                                <canvas id="categoryChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- API Key Config Drawer / Card (Indonesian Instructions inside UI) -->
+                <div id="section-api-settings" class="bg-glassBg border border-glassBorder backdrop-blur-md rounded-2xl p-5 shadow-glass">
+                    <div class="flex items-center justify-between cursor-pointer" onclick="toggleApiSettings()">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-400 flex items-center justify-center">
+                                <i class="fa-solid fa-key"></i>
+                            </div>
+                            <div>
+                                <h4 class="text-sm font-bold text-slate-200">Pengaturan API & Kredensial</h4>
+                                <p class="text-xs text-slate-400">Atur Supabase URL, Anon Key, dan Gemini API Key</p>
+                            </div>
+                        </div>
+                        <i id="api-settings-chevron" class="fa-solid fa-chevron-down text-slate-400 transition-transform duration-200"></i>
+                    </div>
+                    
+                    <div id="api-settings-panel" class="hidden mt-5 pt-5 border-t border-glassBorder space-y-4">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-400 mb-1.5">Supabase Project URL</label>
+                                <input type="password" id="input-supabase-url" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-brandPurple" placeholder="https://xxxx.supabase.co">
+                                <p class="text-[10px] text-slate-500 mt-1">Dapatkan dari Settings -> API -> Project URL.</p>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-400 mb-1.5">Supabase Anon Key</label>
+                                <input type="password" id="input-supabase-key" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-brandPurple" placeholder="eyJhbGciOi...">
+                                <p class="text-[10px] text-slate-500 mt-1">Dapatkan dari Settings -> API -> anon public key.</p>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-400 mb-1.5">Gemini API Key (Google AI Studio)</label>
+                                <input type="password" id="input-gemini-key" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-brandPurple" placeholder="AIzaSy...">
+                                <p class="text-[10px] text-slate-500 mt-1">Digunakan untuk voice parsing dan scanning OCR kuitansi.</p>
+                            </div>
+                        </div>
+                        <div class="flex justify-end pt-2">
+                            <button id="btn-save-settings" class="bg-brandPurple hover:bg-brandPurple/95 active:scale-95 text-white font-semibold text-xs min-h-[44px] py-2 px-4 rounded-xl shadow-md transition-all duration-150">
+                                <i class="fa-solid fa-floppy-disk mr-1.5"></i> Simpan Konfigurasi
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SECTION 2: TRANSACTIONS VIEW (List & Desktop Card) -->
+                <div id="section-transactions" class="space-y-6">
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        
+                        <!-- Recent Transactions list -->
+                        <div class="bg-glassBg border border-glassBorder backdrop-blur-md rounded-2xl p-5 shadow-glass lg:col-span-2 flex flex-col">
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-3">
+                                <h4 class="text-md font-bold text-slate-100">Daftar Transaksi Terakhir</h4>
+                                <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                                    
+                                    <!-- Elegant Filter Tabs -->
+                                    <div class="flex space-x-1 bg-slate-900/60 p-1 rounded-xl border border-glassBorder w-full sm:w-auto">
+                                        <button id="filter-tx-all" class="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-brandPurple text-white shadow-neon-purple active:scale-95 transition-transform duration-100 min-h-[36px]" onclick="setTxFilter('all')">Semua</button>
+                                        <button id="filter-tx-income" class="px-3.5 py-1.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-slate-200 active:scale-95 transition-transform duration-100 min-h-[36px]" onclick="setTxFilter('income')">Pemasukan</button>
+                                        <button id="filter-tx-expense" class="px-3.5 py-1.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-slate-200 active:scale-95 transition-transform duration-100 min-h-[36px]" onclick="setTxFilter('expense')">Pengeluaran</button>
+                                    </div>
+                                    <div class="relative flex-1 sm:w-44">
+                                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500 pointer-events-none">
+                                            <i class="fa-solid fa-magnifying-glass text-xs"></i>
+                                        </span>
+                                        <input type="text" id="search-tx" class="w-full bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-xl pl-9 pr-3.5 py-2 focus:outline-none focus:ring-1 focus:ring-brandPurple" placeholder="Cari deskripsi...">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Table or List View -->
+                            <div id="tx-loading-state" class="hidden flex flex-col items-center justify-center py-12 text-slate-500 space-y-2">
+                                <i class="fa-solid fa-circle-notch fa-spin text-xl text-brandPurple"></i>
+                                <span class="text-xs">Memuat data dari Supabase...</span>
+                            </div>
+
+                            <div id="tx-empty-state" class="flex flex-col items-center justify-center py-12 text-slate-500 space-y-2">
+                                <i class="fa-solid fa-receipt text-3xl mb-1 text-slate-600"></i>
+                                <span class="text-xs">Belum ada transaksi terdaftar.</span>
+                            </div>
+
+                            <div class="overflow-y-auto max-h-[480px] pr-1 hidden" id="tx-list-container">
+                                <div class="divide-y divide-glassBorder/50" id="tx-list">
+                                    <!-- Transaction item template -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Sticky Add button area (Desktop Only) -->
+                        <div class="bg-glassBg border border-glassBorder backdrop-blur-md rounded-2xl p-6 shadow-glass flex flex-col items-center justify-center text-center space-y-4 hidden md:flex">
+                            <div class="w-16 h-16 rounded-full bg-brandPurple/10 text-brandPurple flex items-center justify-center text-2xl shadow-inner shadow-brandPurple/20 animate-pulse">
+                                <i class="fa-solid fa-plus-minus"></i>
+                            </div>
+                            <div>
+                                <h4 class="text-md font-bold text-white">Input Transaksi Instan</h4>
+                                <p class="text-slate-400 text-xs mt-1.5 leading-relaxed">
+                                    Rekam catatan baru secara manual, menggunakan suara AI, atau pindai foto struk belanja menggunakan OCR.
+                                </p>
+                            </div>
+                            <button id="btn-open-input-modal" class="w-full bg-gradient-to-r from-brandPurple to-indigo-600 hover:from-brandPurple/90 hover:to-indigo-600/90 active:scale-95 text-white font-bold text-sm min-h-[48px] py-3 px-4 rounded-xl shadow-neon-purple transition-all duration-150">
+                                <i class="fa-solid fa-circle-plus mr-1.5"></i> Catat Transaksi Baru
+                            </button>
+                        </div>
+
+                    </div>
+                </div>
+
+            </main>
+        </div>
+
+    </div>
+
+    <!-- FLOATING ACTION BUTTON (FAB) - Mobile Only -->
+    <button id="btn-mobile-fab" class="fixed bottom-20 right-5 z-30 w-14 h-14 rounded-full bg-gradient-to-tr from-brandPurple to-indigo-600 text-white flex items-center justify-center shadow-neon-purple active:scale-95 transition-transform duration-100 md:hidden" onclick="openInputModal()">
+        <i class="fa-solid fa-plus text-xl"></i>
+    </button>
+
+    <!-- BOTTOM NAVIGATION BAR - Mobile Only (Glassmorphism effect) -->
+    <div class="fixed bottom-0 left-0 right-0 z-30 h-16 bg-glassBg border-t border-glassBorder backdrop-blur-md flex md:hidden items-center justify-around px-4 shadow-glass">
+        <button id="btn-nav-dashboard" class="flex flex-col items-center justify-center flex-1 h-full text-brandPurple active:scale-95 transition-transform duration-100" onclick="switchMobileTab('dashboard')">
+            <i class="fa-solid fa-chart-simple text-lg"></i>
+            <span class="text-[10px] font-semibold mt-1">Dashboard</span>
+        </button>
+        <button id="btn-nav-transactions" class="flex flex-col items-center justify-center flex-1 h-full text-slate-400 active:scale-95 transition-transform duration-100" onclick="switchMobileTab('transactions')">
+            <i class="fa-solid fa-receipt text-lg"></i>
+            <span class="text-[10px] font-semibold mt-1">Transaksi</span>
+        </button>
+        <button id="btn-nav-qr" class="flex flex-col items-center justify-center flex-1 h-full text-slate-400 active:scale-95 transition-transform duration-100" onclick="openQrModal()">
+            <i class="fa-solid fa-qrcode text-lg"></i>
+            <span class="text-[10px] font-semibold mt-1">QR Sync</span>
+        </button>
+    </div>
+
+    <!-- MODAL 1: ULTIMATE INPUT SYSTEM (Responsive: Center dialog on desktop, Bottom-sheet on mobile) -->
+    <div id="modal-input" class="fixed inset-0 z-40 hidden md:items-center justify-center items-end p-0 md:p-4 bg-slate-950/80 backdrop-blur-sm transition-opacity duration-300">
+        <div id="modal-input-container" class="w-full md:max-w-lg bg-[#0f172a] border-t md:border border-glassBorder rounded-t-3xl md:rounded-3xl p-6 shadow-glass relative flex flex-col max-h-[85vh] md:max-h-[90vh] overflow-hidden transform translate-y-full md:translate-y-0 transition-transform duration-300 ease-out">
+            
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between pb-4 border-b border-glassBorder mb-4">
+                <div class="flex items-center space-x-2">
+                    <span class="w-3 h-3 rounded-full bg-brandPurple"></span>
+                    <h3 class="text-md font-bold text-white">Catat Transaksi Baru</h3>
+                </div>
+                <button id="btn-close-input-modal" class="text-slate-400 hover:text-white p-2.5 rounded-lg active:scale-95 transition-transform">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <!-- Modal Content (Scrollable) -->
+            <div class="flex-1 overflow-y-auto space-y-4 pr-1">
+                
+                <!-- Type Selection (Income vs Expense) -->
+                <div class="grid grid-cols-2 gap-2 bg-slate-900/60 p-1 rounded-xl border border-glassBorder">
+                    <button id="tab-type-expense" class="py-2.5 text-xs font-semibold rounded-lg bg-brandCoral text-white shadow-neon-coral transition-all duration-150 min-h-[40px] active:scale-95 transition-transform" onclick="setInputType('expense')">
+                        <i class="fa-solid fa-arrow-trend-down mr-1.5"></i> Pengeluaran
+                    </button>
+                    <button id="tab-type-income" class="py-2.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-slate-200 transition-all duration-150 min-h-[40px] active:scale-95 transition-transform" onclick="setInputType('income')">
+                        <i class="fa-solid fa-arrow-trend-up mr-1.5"></i> Pemasukan
+                    </button>
+                </div>
+
+                <!-- AI Quick Inputs (Voice and OCR) -->
+                <div class="grid grid-cols-2 gap-3">
+                    <!-- Voice Input Button -->
+                    <div class="flex flex-col">
+                        <button id="btn-voice-input" class="bg-slate-800/80 hover:bg-slate-700 active:bg-slate-900 border border-slate-700/80 p-3 rounded-2xl flex items-center justify-center space-x-2.5 transition duration-150 cursor-pointer min-h-[48px] active:scale-95 transition-transform">
+                            <span class="relative flex h-5 w-5 items-center justify-center">
+                                <i class="fa-solid fa-microphone text-brandPurple text-sm"></i>
+                            </span>
+                            <span class="text-xs font-bold text-slate-300">Perekam Suara</span>
+                        </button>
+                    </div>
+
+                    <!-- OCR Image Input Trigger -->
+                    <div class="flex flex-col">
+                        <label for="ocr-image-upload" class="bg-slate-800/80 hover:bg-slate-700 active:bg-slate-900 border border-slate-700/80 p-3 rounded-2xl flex items-center justify-center space-x-2.5 transition duration-150 cursor-pointer min-h-[48px] active:scale-95 transition-transform">
+                            <i class="fa-solid fa-camera text-brandTeal text-sm"></i>
+                            <span class="text-xs font-bold text-slate-300">Foto Kuitansi</span>
+                        </label>
+                        <input type="file" id="ocr-image-upload" class="hidden" accept="image/*">
+                    </div>
+                </div>
+
+                <!-- Speech Processing / Scanning Animation Overlay Box -->
+                <div id="ai-processing-box" class="hidden p-3 bg-brandPurple/10 border border-brandPurple/20 rounded-2xl text-xs space-y-2 relative">
+                    <div class="flex items-center space-x-2">
+                        <i id="ai-processing-icon" class="fa-solid fa-circle-notch fa-spin text-brandPurple"></i>
+                        <span id="ai-processing-status" class="font-semibold text-brandPurple">Sedang merekam suara... Bicara sekarang.</span>
+                    </div>
+                    <div id="ai-transcript-preview" class="text-slate-400 italic"></div>
+                </div>
+
+                <!-- Receipt Image Preview and Scan Indicator -->
+                <div id="ocr-preview-box" class="hidden p-3 bg-slate-900 border border-glassBorder rounded-2xl relative">
+                    <button id="btn-remove-ocr-img" class="absolute top-2 right-2 bg-slate-950/80 hover:bg-slate-950 text-brandCoral w-6 h-6 rounded-full flex items-center justify-center z-10">
+                        <i class="fa-solid fa-trash-can text-xs"></i>
+                    </button>
+                    <div class="flex items-center space-x-3">
+                        <img id="ocr-img-thumbnail" src="" class="w-12 h-16 object-cover rounded-lg border border-slate-700">
+                        <div class="flex-1 min-w-0">
+                            <span class="block text-xs font-semibold text-slate-300 truncate" id="ocr-file-name">receipt.jpg</span>
+                            <span class="block text-[10px] text-slate-500" id="ocr-file-size">145 KB</span>
+                            <div class="w-full bg-slate-800 rounded-full h-1.5 mt-1.5 overflow-hidden">
+                                <div id="ocr-progress-bar" class="bg-brandTeal h-1.5 w-0 transition-all duration-300"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- AMOUNT FIELD & CALCULATOR WRAPPER -->
+                <div class="space-y-1">
+                    <label class="block text-xs font-semibold text-slate-400">Nominal Transaksi (Rp)</label>
+                    <div class="relative bg-slate-800 border border-slate-700 rounded-2xl px-4 py-3 flex items-center focus-within:border-brandPurple">
+                        <span class="text-md font-bold text-slate-400 mr-2">Rp</span>
+                        <input type="text" id="input-amount" class="w-full bg-transparent text-xl font-bold text-white focus:outline-none min-h-[36px]" placeholder="0">
+                        
+                        <!-- Toggle Calculator Button -->
+                        <button id="btn-toggle-calc" class="ml-2 bg-slate-700/80 text-brandPurple hover:bg-slate-700 p-2 rounded-xl transition duration-150 active:scale-95 transition-transform">
+                            <i class="fa-solid fa-calculator text-sm"></i>
+                        </button>
+                    </div>
+                    
+                    <!-- CALCULATOR KEYPAD (Always Visible by default) -->
+                    <div id="calculator-keypad" class="grid grid-cols-4 gap-2 bg-slate-900/80 p-3 rounded-2xl border border-glassBorder mt-2 transition-all duration-300">
+                        <!-- Row 1 -->
+                        <button type="button" class="py-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 rounded-xl font-bold text-slate-200 text-sm active:scale-95 transition-transform duration-100 min-h-[44px]" onclick="pressCalc('C')">C</button>
+                        <button type="button" class="py-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 rounded-xl font-bold text-slate-200 text-sm active:scale-95 transition-transform duration-100 min-h-[44px]" onclick="pressCalc('/')">/</button>
+                        <button type="button" class="py-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 rounded-xl font-bold text-slate-200 text-sm active:scale-95 transition-transform duration-100 min-h-[44px]" onclick="pressCalc('*')">×</button>
+                        <button type="button" class="py-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 rounded-xl font-bold text-brandCoral text-sm active:scale-95 transition-transform duration-100 min-h-[44px]" onclick="pressCalc('DEL')"><i class="fa-solid fa-delete-left"></i></button>
+                        <!-- Row 2 -->
+                        <button type="button" class="py-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 rounded-xl font-bold text-slate-200 text-sm active:scale-95 transition-transform duration-100 min-h-[44px]" onclick="pressCalc('7')">7</button>
+                        <button type="button" class="py-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 rounded-xl font-bold text-slate-200 text-sm active:scale-95 transition-transform duration-100 min-h-[44px]" onclick="pressCalc('8')">8</button>
+                        <button type="button" class="py-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 rounded-xl font-bold text-slate-200 text-sm active:scale-95 transition-transform duration-100 min-h-[44px]" onclick="pressCalc('9')">9</button>
+                        <button type="button" class="py-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 rounded-xl font-bold text-slate-200 text-sm active:scale-95 transition-transform duration-100 min-h-[44px]" onclick="pressCalc('-')">-</button>
+                        <!-- Row 3 -->
+                        <button type="button" class="py-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 rounded-xl font-bold text-slate-200 text-sm active:scale-95 transition-transform duration-100 min-h-[44px]" onclick="pressCalc('4')">4</button>
+                        <button type="button" class="py-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 rounded-xl font-bold text-slate-200 text-sm active:scale-95 transition-transform duration-100 min-h-[44px]" onclick="pressCalc('5')">5</button>
+                        <button type="button" class="py-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 rounded-xl font-bold text-slate-200 text-sm active:scale-95 transition-transform duration-100 min-h-[44px]" onclick="pressCalc('6')">6</button>
+                        <button type="button" class="py-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 rounded-xl font-bold text-slate-200 text-sm active:scale-95 transition-transform duration-100 min-h-[44px]" onclick="pressCalc('+')">+</button>
+                        <!-- Row 4 -->
+                        <button type="button" class="py-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 rounded-xl font-bold text-slate-200 text-sm active:scale-95 transition-transform duration-100 min-h-[44px]" onclick="pressCalc('1')">1</button>
+                        <button type="button" class="py-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 rounded-xl font-bold text-slate-200 text-sm active:scale-95 transition-transform duration-100 min-h-[44px]" onclick="pressCalc('2')">2</button>
+                        <button type="button" class="py-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 rounded-xl font-bold text-slate-200 text-sm active:scale-95 transition-transform duration-100 min-h-[44px]" onclick="pressCalc('3')">3</button>
+                        <!-- Equal button spans 2 rows tall -->
+                        <button type="button" class="row-span-2 py-3 bg-brandPurple hover:bg-brandPurple/90 active:bg-indigo-900 rounded-xl font-bold text-white text-md flex items-center justify-center active:scale-95 transition-transform duration-100 min-h-[92px]" onclick="pressCalc('=')">=</button>
+                        <!-- Row 5 -->
+                        <button type="button" class="py-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 rounded-xl font-bold text-slate-200 text-sm active:scale-95 transition-transform duration-100 min-h-[44px]" onclick="pressCalc('0')">0</button>
+                        <button type="button" class="py-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 rounded-xl font-bold text-slate-200 text-sm active:scale-95 transition-transform duration-100 min-h-[44px]" onclick="pressCalc('000')">000</button>
+                        <button type="button" class="py-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 rounded-xl font-bold text-slate-200 text-sm active:scale-95 transition-transform duration-100 min-h-[44px]" onclick="pressCalc('.')">.</button>
+                    </div>
+                </div>
+
+                <!-- CATEGORY FIELD -->
+                <div class="space-y-1">
+                    <label class="block text-xs font-semibold text-slate-400">Kategori</label>
+                    <select id="input-category" class="w-full bg-slate-800 border border-slate-700 rounded-2xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-brandPurple min-h-[48px]">
+                        <!-- Categories dynamically updated but standard list here -->
+                        <option value="Makanan & Minuman">Makanan & Minuman</option>
+                        <option value="Transportasi">Transportasi</option>
+                        <option value="Belanja">Belanja</option>
+                        <option value="Tagihan & Utilitas">Tagihan & Utilitas</option>
+                        <option value="Hiburan & Rekreasi">Hiburan & Rekreasi</option>
+                        <option value="Gaji / Pemasukan">Gaji / Pemasukan</option>
+                        <option value="Investasi">Investasi</option>
+                        <option value="Lainnya" selected>Lainnya</option>
+                    </select>
+                </div>
+
+                <!-- DATE FIELD -->
+                <div class="space-y-1">
+                    <label class="block text-xs font-semibold text-slate-400">Tanggal</label>
+                    <input type="date" id="input-date" class="w-full bg-slate-800 border border-slate-700 rounded-2xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-brandPurple min-h-[48px]">
+                </div>
+
+                <!-- DESCRIPTION FIELD -->
+                <div class="space-y-1">
+                    <label class="block text-xs font-semibold text-slate-400">Keterangan / Catatan</label>
+                    <input type="text" id="input-description" class="w-full bg-slate-800 border border-slate-700 rounded-2xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-brandPurple min-h-[48px]" placeholder="Belanja bulanan di supermarket...">
+                </div>
+
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="pt-4 border-t border-glassBorder mt-4 flex space-x-2 pb-6 md:pb-0">
+                <button id="btn-cancel-tx" class="flex-1 min-h-[48px] py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-xl text-sm transition-all duration-150 active:scale-95 transition-transform">Batal</button>
+                <button id="btn-submit-tx" class="flex-1 min-h-[48px] py-3 px-4 bg-brandPurple hover:bg-brandPurple/95 text-white font-bold rounded-xl text-sm shadow-neon-purple transition-all duration-150 active:scale-95 transition-transform">Simpan Transaksi</button>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- MODAL 2: QR SYNC AND DEVICE PAIRING (Centered Pop-Up) -->
+    <div id="modal-qr-sync" class="fixed inset-0 z-40 hidden items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+        <div class="w-full max-w-md bg-[#0f172a] border border-glassBorder backdrop-blur-md rounded-3xl p-6 shadow-glass relative flex flex-col max-h-[90vh] overflow-hidden">
+            
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between pb-4 border-b border-glassBorder mb-4">
+                <h3 class="text-md font-bold text-white"><i class="fa-solid fa-qrcode mr-2 text-brandPurple"></i>Sync Session Perangkat</h3>
+                <button id="btn-close-qr-modal" class="text-slate-400 hover:text-white p-2.5 rounded-lg active:scale-95 transition-transform">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <!-- Sync Tabs (Generate vs Scan) -->
+            <div class="grid grid-cols-2 gap-2 bg-slate-900/60 p-1 rounded-xl border border-glassBorder mb-5">
+                <button id="tab-qr-share" class="py-2.5 text-xs font-semibold rounded-lg bg-brandPurple text-white shadow-neon-purple active:scale-95 transition-transform min-h-[36px]" onclick="setQrMode('share')">
+                    <i class="fa-solid fa-share-nodes mr-1.5"></i> Bagikan Akses
+                </button>
+                <button id="tab-qr-scan" class="py-2.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-slate-200 active:scale-95 transition-transform min-h-[36px]" onclick="setQrMode('scan')">
+                    <i class="fa-solid fa-qrcode mr-1.5"></i> Pindai Kode QR
+                </button>
+            </div>
+
+            <!-- TAB CONTENT A: SHARE SESSION (Generate QR) -->
+            <div id="qr-share-section" class="flex flex-col items-center justify-center space-y-4 py-2">
+                <p class="text-xs text-slate-400 text-center px-4 leading-relaxed">
+                    Pindai kode QR di bawah menggunakan perangkat mobile untuk login secara instan tanpa perlu memasukkan akun kembali.
+                </p>
+                <!-- QR Image Holder -->
+                <div class="bg-white p-4 rounded-2xl shadow-lg border border-slate-200 flex items-center justify-center w-[200px] h-[200px]">
+                    <div id="qrcode-container"></div>
+                </div>
+                <div class="text-center">
+                    <span class="inline-block bg-brandTeal/15 text-brandTeal border border-brandTeal/20 text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider animate-pulse">
+                        Sesi Aktif
+                    </span>
+                    <p class="text-[10px] text-slate-500 mt-2">Kode QR kedaluwarsa dalam 5 menit</p>
+                </div>
+            </div>
+
+            <!-- TAB CONTENT B: SCAN SESSION (Camera Capture) -->
+            <div id="qr-scan-section" class="hidden flex flex-col items-center justify-center space-y-4 py-2">
+                <p class="text-xs text-slate-400 text-center px-4 leading-relaxed">
+                    Berikan izin kamera untuk memindai kode QR dari layar komputer Anda.
+                </p>
+                <!-- Scanner Div -->
+                <div class="w-full aspect-square max-w-[280px] bg-slate-900 border border-slate-700 rounded-2xl overflow-hidden relative shadow-inner flex items-center justify-center">
+                    <div id="qr-reader" class="w-full h-full"></div>
+                    <div id="qr-scanner-placeholder" class="absolute inset-0 flex flex-col items-center justify-center space-y-2 pointer-events-none text-slate-600">
+                        <i class="fa-solid fa-camera-rotate text-3xl animate-pulse"></i>
+                        <span class="text-[10px]">Kamera sedang diinisialisasi...</span>
+                    </div>
+                </div>
+                <div class="w-full text-center">
+                    <button id="btn-start-scanner" class="bg-slate-800 hover:bg-slate-700 active:bg-slate-900 border border-slate-700 text-slate-200 font-bold text-xs min-h-[44px] py-2 px-4 rounded-xl active:scale-95 transition-transform">
+                        <i class="fa-solid fa-play mr-1.5 text-brandTeal"></i>Mulai Kamera Scanner
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- APP SCRIPT LINKING JS -->
+    <script src="app.js"></script>
+</body>
+</html>

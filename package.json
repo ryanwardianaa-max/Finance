@@ -1,0 +1,18 @@
+{
+  "name": "personal-finance-app",
+  "version": "1.0.0",
+  "description": "Advanced Personal Finance Web App with Google Sheets and Gemini AI integration",
+  "main": "server.js",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js"
+  },
+  "keywords": [
+    "personal-finance",
+    "gemini",
+    "apps-script",
+    "finance-tracker"
+  ],
+  "author": "Antigravity Dev",
+  "license": "MIT"
+}
