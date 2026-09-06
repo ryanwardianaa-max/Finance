@@ -481,6 +481,7 @@ async function loadData() {
     const isDemo = localStorage.getItem('sk_demo') === 'true';
 
     if (!supabaseClient || isDemo) {
+        updateConnectionStatus(isDemo ? 'demo' : 'offline');
         loadLocalTransactions();
         if (loading) loading.classList.add('hidden');
         return;
@@ -494,13 +495,35 @@ async function loadData() {
         if (error) throw error;
         transactions = data || [];
         cacheTransactions();
+        updateConnectionStatus('connected');
         updateDashboardMetrics();
     } catch (err) {
         console.error("Supabase load error:", err);
         showToast("Koneksi gagal, menggunakan data cache.", "warning");
+        updateConnectionStatus('offline');
         loadLocalTransactions();
     } finally {
         if (loading) loading.classList.add('hidden');
+    }
+}
+
+function updateConnectionStatus(mode) {
+    const textEl = document.getElementById('sync-status-text');
+    const dotEl = document.getElementById('sync-status-dot');
+    if (!textEl) return;
+
+    if (mode === 'demo') {
+        textEl.textContent = 'Mode Demo · Data Lokal';
+        dotEl?.classList.remove('bg-emerald-400');
+        dotEl?.classList.add('bg-amber-400');
+    } else if (mode === 'offline') {
+        textEl.textContent = 'Mode Offline · Data Lokal';
+        dotEl?.classList.remove('bg-emerald-400');
+        dotEl?.classList.add('bg-amber-400');
+    } else {
+        textEl.textContent = 'Terhubung ke Supabase';
+        dotEl?.classList.remove('bg-amber-400');
+        dotEl?.classList.add('bg-emerald-400');
     }
 }
 
@@ -536,16 +559,22 @@ function defaultDemoData() {
 
 function updateDashboardMetrics() {
     let totalIncome = 0, totalExpense = 0;
+    let lifetimeIncome = 0, lifetimeExpense = 0;
     const now = new Date();
-    const cy = now.getFullYear(), cm = now.getMonth();
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
     transactions.forEach(t => {
-        const d = new Date(t.date);
-        if (t.type === 'income') totalIncome += parseFloat(t.amount) || 0;
-        else totalExpense += parseFloat(t.amount) || 0;
+        const amount = parseFloat(t.amount) || 0;
+        if (t.type === 'income') {
+            lifetimeIncome += amount;
+            if (t.date && t.date.startsWith(currentMonth)) totalIncome += amount;
+        } else {
+            lifetimeExpense += amount;
+            if (t.date && t.date.startsWith(currentMonth)) totalExpense += amount;
+        }
     });
 
-    const balance = totalIncome - totalExpense;
+    const balance = lifetimeIncome - lifetimeExpense;
     const months = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
 
     setInnerText('stat-total-balance', formatRupiah(balance));
@@ -608,7 +637,8 @@ function renderTransactionsList(searchQuery = '') {
             <div class="flex items-center gap-2 flex-shrink-0 ml-2">
                 <span class="text-xs font-black ${amountColor}">${sign} ${formatRupiah(t.amount)}</span>
                 <button onclick="handleDeleteTransaction('${t.id}')"
-                    class="opacity-0 group-hover:opacity-100 focus:opacity-100 w-7 h-7 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 flex items-center justify-center transition-all min-h-0">
+                    class="opacity-100 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 w-7 h-7 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 flex items-center justify-center transition-all min-h-0"
+                    aria-label="Hapus transaksi">
                     <i class="fa-solid fa-trash-can text-[9px]"></i>
                 </button>
             </div>
@@ -1149,6 +1179,10 @@ async function handleReceiptOCR(event) {
         return;
     }
 
+    // Desktop OCR is triggered from the transaction card while the modal is closed.
+    const modal = document.getElementById('modal-input');
+    if (modal && modal.classList.contains('hidden')) openInputModal('manual');
+
     const previewBox = document.getElementById('ocr-preview-box');
     const imgThumb = document.getElementById('ocr-img-thumbnail');
     const fileName = document.getElementById('ocr-file-name');
@@ -1592,13 +1626,16 @@ function formatDisplayNumber(str) {
 }
 
 function todayString() {
-    return new Date().toISOString().substring(0, 10);
+    const d = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
 function offsetDate(days) {
     const d = new Date();
     d.setDate(d.getDate() + days);
-    return d.toISOString().substring(0, 10);
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
 function formatDateShort(dateStr) {
